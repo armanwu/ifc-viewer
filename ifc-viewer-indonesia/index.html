@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>IFC Viewer Indonesia</title>
+<style>
+/* ── Palet: abu-abu Windows + merah & putih Indonesia ── */
+:root {
+  --bg-app:      #e8e8e8;
+  --bg-panel:    #f0f0f0;
+  --bg-card:     #ffffff;
+  --bg-hover:    #dce4ec;
+  --border:      #c0c0c0;
+  --border-dark: #a0a0a0;
+  --teks:        #1a1a1a;
+  --teks-redup:  #555555;
+  --teks-lemah:  #888888;
+  --merah:       #cc0000;
+  --merah-hover: #aa0000;
+  --merah-muda:  #fff0f0;
+  --putih:       #ffffff;
+  --selected:    rgba(204,0,0,0.15);
+  --selected-border: #cc0000;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-size: 13px;
+  background: var(--bg-app);
+  color: var(--teks);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOOLBAR ── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 100%);
+  border-bottom: 2px solid var(--merah);
+  user-select: none;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 6px;
+}
+
+.logo-bendera {
+  width: 28px;
+  height: 20px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.logo-judul {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--teks);
+  letter-spacing: 0.2px;
+}
+.logo-judul span { color: var(--merah); }
+
+.pemisah { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+
+.btn {
+  -webkit-app-region: no-drag;
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-dark);
+  background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%);
+  color: var(--teks);
+  font-size: 12px; font-weight: 500;
+  font-family: inherit; cursor: pointer;
+  transition: all 0.1s;
+}
+.btn:hover { background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%); }
+.btn:active { background: #d0d0d0; }
+
+.btn.merah {
+  background: linear-gradient(180deg, #e02020 0%, #cc0000 100%);
+  border-color: #990000;
+  color: white;
+}
+.btn.merah:hover { background: linear-gradient(180deg, #c81010 0%, #aa0000 100%); }
+
+.btn.aktif { background: linear-gradient(180deg, #ffe0e0 0%, #ffc0c0 100%); border-color: var(--merah); color: var(--merah); }
+
+.info-file {
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--teks-redup);
+}
+.badge { background: var(--bg-card); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius); font-size: 11px; color: var(--merah); font-weight: 600; }
+
+/* ── LAYOUT ── */
+#konten { display: flex; flex: 1; overflow: hidden; }
+
+/* ── PANEL KIRI ── */
+#panel-kiri {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #f8f8f8 0%, #ebebeb 100%);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700;
+  color: var(--teks-redup); letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.panel-scroll { flex: 1; overflow-y: auto; padding: 4px; }
+.panel-scroll::-webkit-scrollbar { width: 6px; }
+.panel-scroll::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 3px; }
+
+.item-elemen {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: var(--radius);
+  cursor: pointer; transition: background 0.1s;
+}
+.item-elemen:hover { background: var(--bg-hover); }
+.item-elemen .ikon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.item-elemen .nama { flex: 1; color: var(--teks); }
+.item-elemen .jumlah {
+  background: var(--merah); color: white;
+  border-radius: 10px; padding: 1px 6px;
+  font-size: 10px; font-weight: 700;
+}
+
+.kosong-panel { padding: 16px 10px; text-align: center; color: var(--teks-lemah); font-size: 12px; line-height: 1.6; }
+
+/* ── VIEWPORT ── */
+#area-viewport { flex: 1; position: relative; background: #d0d0d0; overflow: hidden; }
+#kanvas-3d { width: 100%; height: 100%; display: block; }
+
+/* ── SAMBUTAN ── */
+#layar-sambutan {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(ellipse at center, #e8e8e8 0%, #d0d0d0 100%);
+}
+
+.sambutan-logo { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.sambutan-bendera {
+  width: 64px; height: 44px;
+  border-radius: 6px; overflow: hidden;
+  border: 2px solid var(--border-dark);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.sambutan-judul { font-size: 22px; font-weight: 700; color: var(--teks); }
+.sambutan-judul span { color: var(--merah); }
+.sambutan-sub { font-size: 13px; color: var(--teks-redup); text-align: center; max-width: 300px; line-height: 1.6; }
+
+.btn-buka-besar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 28px;
+  background: linear-gradient(180deg, #e02020 0%, #cc0000 100%);
+  border: 1px solid #990000;
+  border-radius: var(--radius);
+  color: white; font-size: 14px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+  box-shadow: 0 3px 8px rgba(204,0,0,0.3);
+  transition: all 0.15s;
+}
+.btn-buka-besar:hover { background: linear-gradient(180deg, #cc0000 0%, #aa0000 100%); transform: translateY(-1px); }
+
+.format-hint { font-size: 11px; color: var(--teks-lemah); }
+
+/* ── LOADING ── */
+#layar-loading {
+  position: absolute; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: rgba(232,232,232,0.9); z-index: 10;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border-dark);
+  border-top-color: var(--merah);
+  border-radius: 50%;
+  animation: putar 0.7s linear infinite;
+}
+@keyframes putar { to { transform: rotate(360deg); } }
+.teks-loading { font-size: 13px; color: var(--teks-redup); max-width: 280px; text-align: center; }
+.progress-bar-wrap {
+  width: 220px; height: 4px;
+  background: var(--border);
+  border-radius: 2px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; width: 30%;
+  background: var(--merah);
+  border-radius: 2px;
+  animation: progress-gerak 1.5s ease-in-out infinite;
+}
+@keyframes progress-gerak {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { width: 60%; }
+  100% { transform: translateX(280%); width: 40%; }
+}
+
+/* ── PANEL KANAN ── */
+#panel-kanan {
+  width: 380px; flex-shrink: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab sistem */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #f8f8f8 0%, #ebebeb 100%);
+}
+.tab-btn {
+  flex: 1; padding: 6px 4px;
+  font-size: 11px; font-weight: 600;
+  color: var(--teks-redup);
+  border: none; background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--merah); }
+.tab-btn.aktif { color: var(--merah); border-bottom-color: var(--merah); }
+
+.tab-konten { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+.tab-konten.aktif { display: flex; }
+.tab-konten::-webkit-scrollbar { width: 6px; }
+.tab-konten::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 3px; }
+
+/* Properti elemen */
+.prop-grup { padding: 6px 8px; border-bottom: 1px solid #e8e8e8; }
+.prop-grup-judul {
+  font-size: 10px; font-weight: 700; color: var(--merah);
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.prop-grup-qty { color: #1565c0; }
+.prop-count { font-size: 9px; color: var(--teks-lemah); font-weight: 400; letter-spacing: 0; text-transform: none; }
+.prop-baris { padding: 2px 0; }
+.prop-kunci { font-size: 9px; color: var(--teks-lemah); text-transform: uppercase; letter-spacing: 0.5px; }
+.prop-nilai { font-size: 12px; color: var(--teks); font-weight: 500; word-break: break-all; }
+.prop-lebih { font-size: 10px; color: var(--teks-lemah); padding: 2px 0; font-style: italic; }
+
+/* Tabel kuantitas kompak */
+.prop-tabel-qty { width: 100%; border-collapse: collapse; margin-top: 2px; }
+.prop-tabel-qty tr { border-bottom: 1px solid #f0f0f0; }
+.prop-tabel-qty tr:last-child { border-bottom: none; }
+.ptq-nama { font-size: 11px; color: var(--teks); padding: 3px 0; width: 50%; }
+.ptq-nilai { font-size: 13px; font-weight: 700; color: var(--merah); text-align: right; padding: 3px 4px; }
+.ptq-sat { font-size: 10px; color: var(--teks-redup); white-space: nowrap; padding: 3px 0; }
+
+/* Kalkulasi */
+.kalk-kartu {
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--merah);
+}
+.kalk-kartu.kalk-merah { border-left-color: var(--merah); }
+.kalk-label { font-size: 10px; font-weight: 700; color: var(--teks-redup); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.kalk-row { display: flex; align-items: baseline; gap: 3px; margin-bottom: 1px; }
+.kalk-kiri { font-size: 10px; color: var(--teks-lemah); width: 40px; flex-shrink: 0; }
+.kalk-besar { font-size: 18px; font-weight: 700; color: var(--merah); }
+.kalk-sat { font-size: 10px; color: var(--teks-redup); }
+.kalk-nol { font-size: 13px; color: var(--teks-lemah); }
+.kalk-row b { font-size: 15px; font-weight: 700; color: var(--merah); }
+
+.kalk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 0 8px 6px;
+}
+.kalk-grid .kalk-kartu:first-child { grid-column: 1 / -1; } /* dinding full width */
+
+.kalk-section-judul {
+  padding: 6px 8px 3px;
+  font-size: 9px; font-weight: 800;
+  color: var(--merah); letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 5px;
+}
+
+/* Tabel per level */
+.kalk-tabel-wrap { overflow-x: auto; padding: 0 6px 8px; }
+.kalk-tabel {
+  width: 100%; border-collapse: collapse;
+  font-size: 11px;
+}
+.kalk-tabel th {
+  background: linear-gradient(180deg, #f8f8f8 0%, #ebebeb 100%);
+  border: 1px solid var(--border);
+  padding: 4px 3px; text-align: center;
+  font-size: 9px; font-weight: 700;
+  color: var(--teks-redup);
+  white-space: nowrap;
+}
+.kalk-tabel td {
+  border: 1px solid var(--border);
+  padding: 4px 3px; text-align: center;
+  color: var(--teks); font-size: 11px;
+}
+.kalk-tabel .td-nama {
+  text-align: left; font-weight: 600;
+  color: var(--teks); white-space: nowrap;
+  max-width: 80px; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kalk-tabel .th-sat { font-weight: 400; color: var(--teks-lemah); }
+.kalk-tabel .tr-total td {
+  background: #fff0f0; font-weight: 700;
+  color: var(--merah); border-top: 2px solid var(--merah);
+}
+.kalk-tabel tbody tr:hover td { background: var(--bg-hover); }
+
+.kalk-badge-ok {
+  margin: 6px 8px; padding: 5px 8px;
+  background: #e8f5e9; border: 1px solid #a5d6a7;
+  border-radius: var(--radius); font-size: 10px; color: #2e7d32;
+}
+.kalk-badge-geom {
+  margin: 6px 8px; padding: 5px 8px;
+  background: #e8f4fd; border: 1px solid #90caf9;
+  border-radius: var(--radius); font-size: 10px; color: #1565c0; line-height: 1.5;
+}
+.kalk-badge-warn {
+  margin: 6px 8px; padding: 5px 8px;
+  background: #fff8e1; border: 1px solid #ffe082;
+  border-radius: var(--radius); font-size: 10px; color: #795548;
+}
+
+/* ── TOOLTIP SELEKSI ── */
+#tooltip-seleksi {
+  position: absolute; display: none;
+  background: white; border: 1px solid var(--border-dark);
+  border-left: 3px solid var(--merah);
+  border-radius: var(--radius); padding: 6px 10px;
+  font-size: 12px; color: var(--teks);
+  pointer-events: none; z-index: 20;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* ── STATUS BAR ── */
+#status-bar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 3px 12px;
+  background: linear-gradient(180deg, #e0e0e0 0%, #d8d8d8 100%);
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--teks-redup);
+  flex-shrink: 0;
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: #28a745; }
+.status-dot.muat { background: #fd7e14; animation: kedip 0.8s ease-in-out infinite; }
+@keyframes kedip { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── HIGHLIGHT SELEKSI ── */
+.highlight-outline {
+  position: absolute; pointer-events: none; z-index: 15;
+  border: 2px solid var(--merah); border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(204,0,0,0.3);
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <div class="logo">
+    <svg class="logo-bendera" viewBox="0 0 28 20" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="10" fill="#cc0000"/>
+      <rect y="10" width="28" height="10" fill="#ffffff"/>
+    </svg>
+    <div class="logo-judul">IFC Viewer <span>Indonesia</span></div>
+  </div>
+  <div class="pemisah"></div>
+  <button class="btn merah" id="tombol-buka">📂 Buka File IFC</button>
+  <button class="btn" id="tombol-reset">↺ Reset Kamera</button>
+  <button class="btn" id="tombol-wireframe">⬡ Wireframe</button>
+  <div class="info-file" id="info-file" style="display:none">
+    <span>File aktif:</span>
+    <span class="badge" id="nama-file-aktif"></span>
+  </div>
+</div>
+
+<!-- KONTEN -->
+<div id="konten">
+
+  <!-- PANEL KIRI -->
+  <div id="panel-kiri">
+    <div class="panel-header">Jenis Elemen</div>
+    <div class="panel-scroll" id="daftar-elemen">
+      <div class="kosong-panel">Buka file IFC<br>untuk melihat elemen</div>
+    </div>
+  </div>
+
+  <!-- VIEWPORT -->
+  <div id="area-viewport">
+    <!-- Sambutan -->
+    <div id="layar-sambutan">
+      <div class="sambutan-logo">
+        <svg class="sambutan-bendera" viewBox="0 0 64 44" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="22" fill="#cc0000"/>
+          <rect y="22" width="64" height="22" fill="#ffffff"/>
+        </svg>
+      </div>
+      <div class="sambutan-judul">IFC Viewer <span>Indonesia</span></div>
+      <div class="sambutan-sub">Lihat dan jelajahi model bangunan BIM Anda.<br>Mendukung format IFC 2x3 &amp; IFC 4.</div>
+      <button class="btn-buka-besar" id="tombol-buka-besar">📂 Buka File IFC</button>
+      <div class="format-hint">Format: .ifc</div>
+    </div>
+
+    <!-- Loading -->
+    <div id="layar-loading">
+      <div class="spinner"></div>
+      <div class="teks-loading">Memuat model IFC...</div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
+    </div>
+
+    <!-- Kanvas 3D -->
+    <canvas id="kanvas-3d" style="display:none"></canvas>
+
+    <!-- Tooltip hover -->
+    <div id="tooltip-seleksi"></div>
+  </div>
+
+  <!-- PANEL KANAN -->
+  <div id="panel-kanan">
+    <div class="tab-bar">
+      <button class="tab-btn aktif" data-tab="properti">🔍 Properti</button>
+      <button class="tab-btn" data-tab="kalkulasi">📐 Kalkulasi</button>
+    </div>
+
+    <!-- Tab Properti -->
+    <div class="tab-konten aktif" id="tab-properti">
+      <div id="isi-properti">
+        <div class="kosong-panel">Klik elemen pada model<br>untuk melihat propertinya</div>
+      </div>
+    </div>
+
+    <!-- Tab Kalkulasi -->
+    <div class="tab-konten" id="tab-kalkulasi">
+      <div id="isi-kalkulasi">
+        <div class="kosong-panel">Buka file IFC<br>untuk melihat kalkulasi</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div id="status-bar">
+  <div style="display:flex;align-items:center;gap:5px">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="teks-status">Siap</span>
+  </div>
+  <span id="jumlah-elemen"></span>
+  <span id="info-seleksi"></span>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="renderer.js"></script>
+</body>
+</html>

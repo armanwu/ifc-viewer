@@ -1,0 +1,31 @@
+{
+  "name": "ifc-viewer-indonesia",
+  "version": "1.0.0",
+  "description": "IFC Viewer Desktop - Bahasa Indonesia",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "web-ifc": "0.0.57"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.indonesia.ifcviewer",
+    "productName": "IFC Viewer Indonesia",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "renderer.js",
+      "lib/**"
+    ],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage" }
+  }
+}
