@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IFC Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy-950: #050d1a;
+  --navy-900: #091221;
+  --navy-800: #0d1b2f;
+  --navy-700: #112440;
+  --navy-600: #1a3155;
+  --navy-500: #244268;
+  --navy-400: #2e5280;
+  --navy-300: #3d6898;
+
+  --tq-500:  #00b5b5;
+  --tq-400:  #00cece;
+  --tq-300:  #2dd9d9;
+  --tq-200:  #7aeaea;
+  --tq-100:  #b8f4f4;
+  --tq-glow: rgba(0,206,206,0.12);
+
+  --slate:   #8eaac2;
+  --slate2:  #5d7d99;
+  --slate3:  #3a566e;
+  --slate4:  #243d54;
+
+  --white:   #e8f0f8;
+  --white2:  #c4d4e6;
+  --white3:  #9ab0c8;
+
+  --gold:    #e8b84b;
+  --rose:    #e8607a;
+  --sage:    #4ec9a0;
+  --lilac:   #a08be8;
+
+  --b:  rgba(45,190,190,0.08);
+  --b2: rgba(45,190,190,0.16);
+  --b3: rgba(45,190,190,0.28);
+
+  --r: 10px;
+  --r2: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--navy-950);
+  color: var(--white);
+  min-height: 100vh;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ─── Topbar ─── */
+.topbar {
+  background: var(--navy-900);
+  border-bottom: 1px solid var(--b);
+  height: 54px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 300;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.logo-mark {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--navy-400), var(--tq-500));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  letter-spacing: -.2px;
+}
+
+.logo-sub {
+  font-size: 11px;
+  color: var(--slate2);
+  font-weight: 400;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chip {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--slate2);
+  background: var(--navy-800);
+  border: 1px solid var(--b2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: none;
+}
+
+.chip.show { display: block; }
+
+.btn-ghost {
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--slate);
+  background: transparent;
+  border: 1px solid var(--b2);
+  padding: 6px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all .15s;
+  display: none;
+}
+.btn-ghost:hover { color: var(--white); border-color: var(--b3); }
+.btn-ghost.show { display: block; }
+
+/* ─── Upload ─── */
+#screen-upload {
+  min-height: calc(100vh - 54px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.upload-card {
+  max-width: 540px;
+  width: 100%;
+  background: var(--navy-800);
+  border: 1.5px dashed var(--b2);
+  border-radius: 20px;
+  padding: 60px 48px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  position: relative;
+}
+
+.upload-card:hover,
+.upload-card.over {
+  border-color: var(--tq-400);
+  background: var(--navy-700);
+  box-shadow: 0 0 40px var(--tq-glow);
+}
+
+.upload-icon {
+  width: 72px; height: 72px;
+  margin: 0 auto 22px;
+  background: var(--tq-glow);
+  border: 1px solid var(--b2);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.upload-card h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 8px;
+  letter-spacing: -.3px;
+}
+
+.upload-card p {
+  font-size: 13px;
+  color: var(--slate);
+  line-height: 1.65;
+  margin-bottom: 28px;
+}
+
+.btn-primary {
+  background: var(--tq-500);
+  color: var(--navy-900);
+  border: none;
+  padding: 11px 26px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  letter-spacing: .1px;
+}
+.btn-primary:hover {
+  background: var(--tq-400);
+  box-shadow: 0 4px 20px rgba(0,180,180,.35);
+  transform: translateY(-1px);
+}
+
+.upload-hint {
+  font-size: 11px;
+  color: var(--slate3);
+  margin-top: 18px;
+}
+
+#file-input { display: none; }
+
+/* drag overlay */
+.drag-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5,13,26,.88);
+  border: 2px solid var(--tq-400);
+  z-index: 999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--tq-300);
+}
+.drag-overlay.show { display: flex; }
+
+/* ─── Loading ─── */
+#screen-loading {
+  min-height: calc(100vh - 54px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.spinner {
+  width: 38px; height: 38px;
+  border: 2px solid var(--b2);
+  border-top-color: var(--tq-400);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.load-msg { font-size: 14px; color: var(--slate); }
+.load-sub  { font-size: 11px; color: var(--slate3); font-family: 'JetBrains Mono', monospace; }
+
+.prog-wrap { width: 260px; height: 2px; background: var(--navy-700); border-radius: 2px; overflow: hidden; }
+.prog-bar  { height: 100%; background: var(--tq-400); border-radius: 2px; transition: width .35s ease; width: 0%; }
+
+/* ─── Dashboard ─── */
+#screen-dash {
+  display: none;
+  padding: 26px 28px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* project header */
+.prj-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.prj-name {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--white);
+  letter-spacing: -.4px;
+  margin-bottom: 6px;
+}
+
+.prj-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.meta-item {
+  font-size: 12px;
+  color: var(--slate2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.meta-item span { color: var(--slate); }
+
+.tag-live {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0,181,181,.12);
+  color: var(--tq-300);
+  border: 1px solid rgba(0,181,181,.25);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+/* nav tabs */
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--navy-800);
+  border: 1px solid var(--b);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 22px;
+  width: fit-content;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--slate2);
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.tab.on { background: var(--navy-700); color: var(--white); box-shadow: 0 1px 6px rgba(0,0,0,.3); }
+.tab:hover:not(.on) { color: var(--white2); }
+
+.pane { display: none; }
+.pane.on { display: block; }
+
+/* section label */
+.sec {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--slate3);
+  margin: 20px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sec::after { content: ''; flex: 1; height: 1px; background: var(--b); }
+
+/* grids */
+.g2  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.g3  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.g21 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+.g12 { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; }
+@media(max-width:900px){.g2,.g3,.g21,.g12{grid-template-columns:1fr;}}
+
+/* KPI */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+
+.kpi {
+  background: var(--navy-800);
+  border: 1px solid var(--b);
+  border-radius: var(--r2);
+  padding: 16px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.kpi:hover { border-color: var(--b2); }
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+}
+.kpi.c-tq::before  { background: var(--tq-400); }
+.kpi.c-gold::before{ background: var(--gold); }
+.kpi.c-sage::before{ background: var(--sage); }
+.kpi.c-rose::before{ background: var(--rose); }
+.kpi.c-lil::before { background: var(--lilac); }
+.kpi.c-sl::before  { background: var(--slate); }
+
+.kpi-icon  { font-size: 18px; margin-bottom: 9px; }
+.kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--slate3); font-weight: 500; margin-bottom: 4px; }
+.kpi-val   { font-size: 22px; font-weight: 600; font-family: 'JetBrains Mono', monospace; letter-spacing: -.5px; }
+.kpi.c-tq .kpi-val  { color: var(--tq-300); }
+.kpi.c-gold .kpi-val{ color: var(--gold); }
+.kpi.c-sage .kpi-val{ color: var(--sage); }
+.kpi.c-rose .kpi-val{ color: var(--rose); }
+.kpi.c-lil .kpi-val { color: var(--lilac); }
+.kpi.c-sl .kpi-val  { color: var(--slate); }
+.kpi-sub   { font-size: 10px; color: var(--slate3); margin-top: 3px; }
+
+/* panel */
+.panel {
+  background: var(--navy-800);
+  border: 1px solid var(--b);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+.ph {
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--b);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--slate2); }
+.ps { font-size: 11px; color: var(--slate3); background: var(--navy-700); padding: 2px 8px; border-radius: 20px; font-family: 'JetBrains Mono', monospace; }
+.pb { padding: 14px; }
+.scroll { overflow-y: auto; max-height: 340px; }
+.scroll::-webkit-scrollbar { width: 3px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--navy-600); border-radius: 2px; }
+
+/* element list */
+.elist { display: flex; flex-direction: column; gap: 4px; }
+.erow {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 7px;
+  background: var(--navy-700);
+  transition: background .15s;
+}
+.erow:hover { background: var(--navy-600); }
+.edot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ename { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--white2); }
+.ebar-w { width: 56px; height: 2px; background: var(--navy-600); border-radius: 2px; flex-shrink: 0; }
+.ebar   { height: 100%; border-radius: 2px; }
+.ecnt  { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--slate); min-width: 24px; text-align: right; }
+
+/* storey list */
+.slist { display: flex; flex-direction: column; }
+.srow {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--b);
+  transition: background .15s;
+}
+.srow:last-child { border-bottom: none; }
+.srow:hover { background: var(--navy-700); }
+.snum {
+  width: 24px; height: 24px;
+  background: var(--navy-600);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: var(--slate2);
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+.sinfo { flex: 1; min-width: 0; }
+.sname { font-size: 12px; font-weight: 500; color: var(--white2); }
+.selev { font-size: 11px; color: var(--slate3); font-family: 'JetBrains Mono', monospace; }
+.scnt  { font-size: 12px; color: var(--slate2); font-family: 'JetBrains Mono', monospace; text-align: right; }
+.scnt small { font-size: 10px; color: var(--slate3); display: block; }
+
+/* mat grid */
+.mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 7px; padding: 12px; }
+.mcard {
+  background: var(--navy-700);
+  border: 1px solid var(--b);
+  border-radius: var(--r);
+  padding: 11px 12px;
+  transition: all .15s;
+}
+.mcard:hover { background: var(--navy-600); border-color: var(--b2); }
+.mname { font-size: 11px; font-weight: 500; color: var(--white2); margin-bottom: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mval  { font-size: 20px; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--tq-300); }
+.mlbl  { font-size: 10px; color: var(--slate3); text-transform: uppercase; letter-spacing: .4px; }
+
+/* chart */
+.cbox { padding: 10px 12px 14px; }
+
+/* note */
+.note {
+  background: rgba(0,181,181,.06);
+  border: 1px solid rgba(0,181,181,.18);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--slate);
+  line-height: 1.6;
+  margin-bottom: 13px;
+}
+.note strong { color: var(--tq-300); }
+.warn { background: rgba(232,184,75,.06); border-color: rgba(232,184,75,.2); }
+.warn strong { color: var(--gold); }
+
+/* QTO toolbar */
+.qbar {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  background: var(--navy-800);
+  border: 1px solid var(--b);
+  border-radius: var(--r2);
+  padding: 12px 15px;
+  margin-bottom: 12px;
+}
+.qleft  { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.qright { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.flbl   { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); white-space: nowrap; padding-top: 5px; }
+.pills  { display: flex; flex-wrap: wrap; gap: 4px; }
+.pill {
+  font-size: 11px; padding: 3px 9px; border-radius: 20px;
+  border: 1px solid var(--b2); background: var(--navy-700);
+  color: var(--slate2); cursor: pointer; transition: all .15s;
+  font-family: 'JetBrains Mono', monospace; white-space: nowrap;
+}
+.pill:hover { border-color: var(--tq-400); color: var(--tq-300); }
+.pill.on {
+  background: rgba(0,181,181,.12);
+  border-color: rgba(0,181,181,.35);
+  color: var(--tq-300);
+  font-weight: 600;
+}
+.qsel {
+  background: var(--navy-700); border: 1px solid var(--b2);
+  border-radius: 7px; padding: 5px 9px; font-size: 12px;
+  color: var(--white2); font-family: inherit; cursor: pointer; outline: none;
+}
+.btn-csv {
+  background: rgba(78,201,160,.1);
+  color: var(--sage);
+  border: 1px solid rgba(78,201,160,.25);
+  padding: 6px 13px; border-radius: 7px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all .15s; white-space: nowrap;
+}
+.btn-csv:hover { background: rgba(78,201,160,.2); }
+
+/* QTO summary strip */
+.qsum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.qsc {
+  background: var(--navy-800);
+  border: 1px solid var(--b);
+  border-radius: var(--r);
+  padding: 12px 13px;
+  position: relative;
+  overflow: hidden;
+}
+.qsc::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1.5px; }
+.qsc.c-tq::before  { background: var(--tq-400); }
+.qsc.c-teal::before{ background: var(--tq-300); }
+.qsc.c-gold::before{ background: var(--gold); }
+.qsc.c-sage::before{ background: var(--sage); }
+.qsc.c-lil::before { background: var(--lilac); }
+.qsc.c-rose::before{ background: var(--rose); }
+.qsc-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); font-weight: 500; margin-bottom: 3px; }
+.qsc-val { font-size: 19px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.qsc.c-tq .qsc-val  { color: var(--tq-300); }
+.qsc.c-teal .qsc-val{ color: var(--tq-200); }
+.qsc.c-gold .qsc-val{ color: var(--gold); }
+.qsc.c-sage .qsc-val{ color: var(--sage); }
+.qsc.c-lil .qsc-val { color: var(--lilac); }
+.qsc.c-rose .qsc-val{ color: var(--rose); }
+.qsc-unit { font-size: 10px; color: var(--slate3); margin-top: 2px; }
+
+/* QTO table */
+.qtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.qtable th {
+  text-align: left; padding: 8px 13px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--slate3); font-weight: 500;
+  border-bottom: 1px solid var(--b);
+  background: var(--navy-900);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+.qtable th:hover { color: var(--slate); }
+.qtable th.sorted { color: var(--tq-300); }
+.qtable td {
+  padding: 8px 13px;
+  border-bottom: 1px solid var(--b);
+  color: var(--slate);
+  vertical-align: middle;
+}
+.qtable tr:last-child td { border-bottom: none; }
+.qtable tr:hover td { background: var(--navy-700); }
+.qtable tfoot td {
+  padding: 9px 13px;
+  border-top: 1px solid var(--b2);
+  font-weight: 600; color: var(--white2);
+  background: var(--navy-900);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.tcell { display: flex; align-items: center; gap: 7px; }
+.tdot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tname { color: var(--white2); font-weight: 500; }
+.tcat  { font-size: 10px; color: var(--slate3); margin-top: 1px; }
+.tv    { font-family: 'JetBrains Mono', monospace; }
+.tv1   { color: var(--tq-300); }
+.tv2   { color: var(--gold); }
+.tv3   { color: var(--lilac); }
+.tunit { font-size: 10px; color: var(--slate3); }
+.mbar-w{ width: 48px; height: 2px; background: var(--navy-600); border-radius: 2px; }
+.mbar  { height: 100%; border-radius: 2px; }
+
+/* heatmap */
+.hm-wrap { min-width: 500px; }
+.hm-title-row { display: flex; margin-bottom: 4px; }
+.hm-corner { flex-shrink: 0; }
+.hm-clbl { flex: 1; text-align: center; font-size: 9px; color: var(--slate3); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.hm-row { display: flex; align-items: center; margin-bottom: 3px; }
+.hm-rlbl { flex-shrink: 0; font-size: 11px; color: var(--slate); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.hm-cell { flex: 1; height: 26px; margin: 0 2px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; font-family: 'JetBrains Mono', monospace; cursor: default; transition: filter .15s; min-width: 22px; }
+.hm-cell:hover { filter: brightness(1.25); }
+.hm-leg { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--slate3); }
+.hm-legbar { flex: 1; max-width: 130px; height: 4px; border-radius: 3px; background: linear-gradient(to right, var(--navy-700), var(--tq-400)); }
+
+/* BIM */
+.bim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media(max-width:800px){.bim-grid{grid-template-columns:1fr;}}
+.bcat { background: var(--navy-800); border: 1px solid var(--b); border-radius: var(--r2); overflow: hidden; }
+.bch { padding: 11px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--b); }
+.bct { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--white2); }
+.bscore { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.shi { background: rgba(78,201,160,.12); color: var(--sage); }
+.smd { background: rgba(232,184,75,.12); color: var(--gold); }
+.slo { background: rgba(232,96,122,.12); color: var(--rose); }
+.bitem { display: flex; align-items: center; gap: 9px; padding: 9px 15px; border-bottom: 1px solid var(--b); }
+.bitem:last-child { border-bottom: none; }
+.bico { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+.bp { background: rgba(78,201,160,.12); color: var(--sage); }
+.bw { background: rgba(232,184,75,.12); color: var(--gold); }
+.bf { background: rgba(232,96,122,.12); color: var(--rose); }
+.bi { background: rgba(0,181,181,.10); color: var(--tq-300); }
+.btxt { flex: 1; min-width: 0; }
+.bn { font-size: 12px; font-weight: 500; color: var(--white2); }
+.bd { font-size: 11px; color: var(--slate3); }
+.bbadge { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--slate3); background: var(--navy-700); padding: 1px 6px; border-radius: 4px; white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.ring-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 18px; gap: 8px; }
+.ring-num { font-size: 36px; font-weight: 600; font-family: 'JetBrains Mono', monospace; letter-spacing: -1px; }
+.ring-lbl { font-size: 11px; color: var(--slate3); text-transform: uppercase; letter-spacing: .8px; }
+.ring-grade { font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: 20px; }
+.sb  { display: flex; flex-direction: column; gap: 7px; padding: 0 14px 14px; }
+.sbr { display: flex; align-items: center; gap: 9px; }
+.sbl { font-size: 11px; color: var(--slate3); width: 88px; flex-shrink: 0; }
+.sbb { flex: 1; height: 2px; background: var(--navy-700); border-radius: 2px; overflow: hidden; }
+.sbf { height: 100%; border-radius: 2px; }
+.sbv { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--slate2); min-width: 28px; text-align: right; }
+
+/* properties */
+.sinput {
+  width: 100%; background: var(--navy-700); border: 1px solid var(--b2);
+  border-radius: 7px; padding: 6px 10px; font-size: 12px; color: var(--white2);
+  font-family: inherit; outline: none; transition: border-color .15s;
+}
+.sinput:focus { border-color: var(--tq-400); }
+.sinput::placeholder { color: var(--slate3); }
+.ptable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ptable th { text-align: left; padding: 7px 13px; font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); font-weight: 500; border-bottom: 1px solid var(--b); background: var(--navy-900); }
+.ptable td { padding: 7px 13px; border-bottom: 1px solid var(--b); color: var(--slate); }
+.ptable tr:last-child td { border-bottom: none; }
+.ptable tr:hover td { background: var(--navy-700); }
+.pkey { color: var(--white2); font-weight: 500; }
+.pmono { font-family: 'JetBrains Mono', monospace; color: var(--tq-300); }
+.pbadge { font-size: 10px; background: var(--navy-700); color: var(--slate3); padding: 1px 5px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+.ecloud { display: flex; flex-wrap: wrap; gap: 5px; padding: 13px; }
+.etag { font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 3px 9px; border-radius: 5px; border: 1px solid var(--b2); background: var(--navy-700); color: var(--slate2); transition: all .15s; cursor: default; }
+.etag:hover { background: var(--navy-600); color: var(--white2); }
+.etag.hi { background: rgba(0,181,181,.08); border-color: rgba(0,181,181,.25); color: var(--tq-300); }
+.hinfo { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 9px; padding: 13px; }
+.hcard { background: var(--navy-700); border-radius: var(--r); padding: 11px; }
+.hlbl  { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); font-weight: 500; margin-bottom: 4px; }
+.hval  { font-size: 12px; color: var(--white2); font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<!-- Drag overlay -->
+<div class="drag-overlay" id="drag-ov">
+  <div style="font-size:44px">📂</div>
+  Lepaskan file IFC di sini
+</div>
+
+<!-- Topbar -->
+<div class="topbar">
+  <div class="logo" onclick="resetApp()">
+    <div class="logo-mark">🏗</div>
+    <div>
+      <div class="logo-text">IFC Dashboard</div>
+      <div class="logo-sub">Building Information</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="chip" id="chip"></span>
+    <button class="btn-ghost" id="btn-new" onclick="resetApp()">← File Baru</button>
+    <span id="theme-icon" style="font-size:12px;cursor:pointer;color:var(--slate2)" onclick="toggleTheme()" title="Toggle tema">☀</span>
+  </div>
+</div>
+
+<!-- Upload -->
+<div id="screen-upload">
+  <div class="upload-card" id="drop-zone">
+    <div class="upload-icon">📐</div>
+    <h2>Analisis File IFC</h2>
+    <p>Upload file IFC (versi 2x3 atau IFC4). Data diproses langsung di browser — tidak ada yang dikirim ke server.</p>
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Pilih File IFC</button>
+    <input type="file" id="file-input" accept=".ifc">
+    <div class="upload-hint">Drag & drop file IFC ke halaman ini · Mendukung semua versi IFC</div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="screen-loading">
+  <div class="spinner"></div>
+  <div class="load-msg">Memproses file IFC…</div>
+  <div class="prog-wrap"><div class="prog-bar" id="prog"></div></div>
+  <div class="load-sub" id="load-sub">Membaca header…</div>
+</div>
+
+<!-- Dashboard -->
+<div id="screen-dash">
+  <div class="prj-head">
+    <div>
+      <div class="prj-name" id="prj-name">—</div>
+      <div class="prj-meta" id="prj-meta"></div>
+    </div>
+    <span class="tag-live">✓ Data aktual IFC</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab(this,'overview')">Ikhtisar</button>
+    <button class="tab" onclick="switchTab(this,'qto')">QTO per Lantai</button>
+    <button class="tab" onclick="switchTab(this,'bim')">Checklist BIM</button>
+    <button class="tab" onclick="switchTab(this,'props')">Properti</button>
+  </div>
+
+  <!-- ═ OVERVIEW ═ -->
+  <div class="pane on" id="pane-overview">
+    <div class="kpi-row" id="kpis"></div>
+
+    <div class="sec">Elemen Bangunan</div>
+    <div class="g21">
+      <div class="panel">
+        <div class="ph"><span class="pt">Distribusi Elemen</span><span class="ps" id="elem-badge">—</span></div>
+        <div class="cbox" style="height:268px"><canvas id="ch-elem"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Jumlah per Tipe</span></div>
+        <div class="pb scroll" style="padding:9px"><div class="elist" id="elist"></div></div>
+      </div>
+    </div>
+
+    <div class="sec">Lantai & Level</div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="pt">Daftar Lantai</span><span class="ps" id="storey-badge">—</span></div>
+        <div class="scroll slist" id="slist"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Elemen per Lantai</span></div>
+        <div class="cbox" style="height:280px"><canvas id="ch-stor"></canvas></div>
+      </div>
+    </div>
+
+    <div class="sec">Material</div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="pt">Komposisi Material</span><span class="ps" id="mat-badge">—</span></div>
+        <div class="cbox" style="height:268px"><canvas id="ch-mat"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Daftar Material</span></div>
+        <div class="mgrid" id="mgrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═ QTO ═ -->
+  <div class="pane" id="pane-qto">
+    <div class="note" id="qto-note"></div>
+    <div class="qbar">
+      <div class="qleft">
+        <span class="flbl">Lantai:</span>
+        <div class="pills" id="qto-pills"></div>
+      </div>
+      <div class="qright">
+        <select class="qsel" id="qto-group" onchange="renderQTable()">
+          <option value="type">Per Tipe Elemen</option>
+          <option value="cat">Per Kategori</option>
+          <option value="mat">Per Material</option>
+        </select>
+        <button class="btn-csv" onclick="exportCSV()">↓ CSV</button>
+      </div>
+    </div>
+    <div class="qsum" id="qsum"></div>
+    <div class="g21" style="margin-top:0">
+      <div class="panel">
+        <div class="ph"><span class="pt" id="qt-title">QTO per Tipe</span><span class="ps" id="qt-rows">—</span></div>
+        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
+          <input class="sinput" id="qsearch" placeholder="Cari…" oninput="renderQTable()">
+        </div>
+        <div class="scroll" style="max-height:480px">
+          <table class="qtable">
+            <thead id="qt-head"></thead>
+            <tbody id="qt-body"></tbody>
+            <tfoot id="qt-foot"></tfoot>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div class="panel">
+          <div class="ph"><span class="pt">Volume Bruto (m³)</span></div>
+          <div class="cbox" style="height:208px"><canvas id="ch-qvol"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span class="pt">Luas (m²)</span></div>
+          <div class="cbox" style="height:208px"><canvas id="ch-qarea"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:13px">
+      <div class="ph"><span class="pt">Heatmap — Elemen per Lantai</span><span class="ps">jumlah unit</span></div>
+      <div style="padding:14px;overflow-x:auto"><div id="heatmap"></div></div>
+    </div>
+  </div>
+
+  <!-- ═ BIM ═ -->
+  <div class="pane" id="pane-bim">
+    <div class="g12">
+      <div class="panel">
+        <div class="ph"><span class="pt">Skor Kelengkapan BIM</span></div>
+        <div class="ring-wrap">
+          <svg width="132" height="132" viewBox="0 0 132 132">
+            <circle cx="66" cy="66" r="52" fill="none" stroke="var(--navy-600)" stroke-width="10"/>
+            <circle id="ring-fg" cx="66" cy="66" r="52" fill="none" stroke="var(--tq-400)"
+              stroke-width="10" stroke-linecap="round"
+              stroke-dasharray="326.7" stroke-dashoffset="326.7"
+              transform="rotate(-90 66 66)"
+              style="transition:stroke-dashoffset 1s ease,stroke .4s"/>
+          </svg>
+          <div style="margin-top:-108px;text-align:center;position:relative;z-index:1">
+            <div class="ring-num" id="ring-num" style="color:var(--tq-300)">0</div>
+            <div class="ring-lbl">/ 100</div>
+          </div>
+          <div style="margin-top:70px"><div class="ring-grade" id="ring-grade">—</div></div>
+        </div>
+        <div class="sb" id="sb"></div>
+      </div>
+      <div><div class="bim-grid" id="bim-grid"></div></div>
+    </div>
+    <div class="panel" style="margin-top:13px">
+      <div class="ph"><span class="pt">Rekomendasi</span></div>
+      <div class="pb" id="bim-recs" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+    </div>
+  </div>
+
+  <!-- ═ PROPERTIES ═ -->
+  <div class="pane" id="pane-props">
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="pt">Properti Elemen</span><span class="ps" id="prop-badge">—</span></div>
+        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
+          <input class="sinput" id="psearch" placeholder="Cari properti…" oninput="filterProps(this.value)">
+        </div>
+        <div class="scroll" style="max-height:420px">
+          <table class="ptable">
+            <thead><tr><th>Atribut</th><th>Statistik (Σ total | avg per elemen | n)</th><th>Satuan</th></tr></thead>
+            <tbody id="ptbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Tipe Entitas IFC</span><span class="ps" id="ent-badge">—</span></div>
+        <div class="ecloud scroll" style="max-height:460px" id="ecloud"></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:13px">
+      <div class="ph"><span class="pt">Header File</span></div>
+      <div class="hinfo" id="hinfo"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// ELEMENT CONFIG
+// ═══════════════════════════════════════════════════════════
+const ECFG = {
+  IFCWALL:               {lbl:'Dinding',           cat:'Arsitektur', col:'#2dd9d9'},
+  IFCWALLSTANDARDCASE:   {lbl:'Dinding Standar',   cat:'Arsitektur', col:'#7aeaea'},
+  IFCSLAB:               {lbl:'Pelat',             cat:'Struktur',   col:'#00b5b5'},
+  IFCCOLUMN:             {lbl:'Kolom',             cat:'Struktur',   col:'#3d6898'},
+  IFCBEAM:               {lbl:'Balok',             cat:'Struktur',   col:'#244268'},
+  IFCDOOR:               {lbl:'Pintu',             cat:'Arsitektur', col:'#e8b84b'},
+  IFCWINDOW:             {lbl:'Jendela',           cat:'Arsitektur', col:'#f0d080'},
+  IFCSTAIR:              {lbl:'Tangga',            cat:'Sirkulasi',  col:'#a08be8'},
+  IFCSTAIRFLIGHT:        {lbl:'Tangga Flight',     cat:'Sirkulasi',  col:'#b8a4f0'},
+  IFCROOF:               {lbl:'Atap',              cat:'Arsitektur', col:'#5d7d99'},
+  IFCFOOTING:            {lbl:'Pondasi',           cat:'Struktur',   col:'#4ec9a0'},
+  IFCRAILING:            {lbl:'Railing',           cat:'Arsitektur', col:'#8eaac2'},
+  IFCCOVERING:           {lbl:'Penutup',           cat:'Finishing',  col:'#b8f4f4'},
+  IFCMEMBER:             {lbl:'Member',            cat:'Struktur',   col:'#2e5280'},
+  IFCPLATE:              {lbl:'Plate',             cat:'Struktur',   col:'#1a3155'},
+  IFCCURTAINWALL:        {lbl:'Curtain Wall',      cat:'Arsitektur', col:'#00cece'},
+  IFCBUILDINGELEMENTPROXY:{lbl:'Element Proxy',    cat:'Lain-lain',  col:'#3a566e'},
+  IFCFURNITURE:          {lbl:'Furnitur',          cat:'FF&E',       col:'#e8607a'},
+  IFCLIGHTFIXTURE:       {lbl:'Lampu',             cat:'MEP',        col:'#fde68a'},
+  IFCFLOWTERMINAL:       {lbl:'Flow Terminal',     cat:'MEP',        col:'#4ec9a0'},
+  IFCSYSTEMFURNITUREELEMENT:{lbl:'System Furnitur',cat:'FF&E',       col:'#c09ae8'},
+};
+const MCOLS = ['#2dd9d9','#00b5b5','#3d6898','#e8b84b','#a08be8','#4ec9a0','#8eaac2','#e8607a','#7aeaea','#f0d080','#5d7d99','#b8f4f4','#2e5280','#fde68a','#b8a4f0'];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let DATA = null;
+let QTO_STOREY = 'all';
+let QTO_SORT = {col:'GrossVolume', dir:-1};
+let ALL_PROPS = [];
+let CHARTS = {};
+
+const esc  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const r4   = v => Math.round(v * 10000) / 10000;
+const fmt  = (v,d=2) => v != null ? Number(v).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+const fmti = v => v != null ? Number(v).toLocaleString('id-ID') : '—';
+const gc   = () => 'rgba(45,190,190,0.06)';
+const tc   = () => '#3a566e';
+const tt   = () => ({backgroundColor:'#0d1b2f',titleColor:'#c4d4e6',bodyColor:'#5d7d99',borderColor:'rgba(45,190,190,0.2)',borderWidth:1});
+
+function mkChart(id, cfg) {
+  if (CHARTS[id]) CHARTS[id].destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx.getContext('2d'), cfg);
+}
+
+// ═══════════════════════════════════════════════════════════
+// THEME (light mode kept minimal — mainly bg swap)
+// ═══════════════════════════════════════════════════════════
+let lightMode = false;
+function toggleTheme() {
+  lightMode = !lightMode;
+  const r = document.documentElement.style;
+  if (lightMode) {
+    r.setProperty('--navy-950','#e8eef6');
+    r.setProperty('--navy-900','#dce5f0');
+    r.setProperty('--navy-800','#cdd8ea');
+    r.setProperty('--navy-700','#bfcfde');
+    r.setProperty('--navy-600','#b0c2d4');
+    r.setProperty('--navy-500','#8eaac2');
+    r.setProperty('--navy-400','#6a8faf');
+    r.setProperty('--white',   '#0d1b2f');
+    r.setProperty('--white2',  '#112440');
+    r.setProperty('--white3',  '#1a3155');
+    r.setProperty('--slate',   '#244268');
+    r.setProperty('--slate2',  '#2e5280');
+    r.setProperty('--slate3',  '#3d6898');
+    r.setProperty('--slate4',  '#5d7d99');
+    r.setProperty('--b',  'rgba(0,120,140,0.12)');
+    r.setProperty('--b2', 'rgba(0,120,140,0.22)');
+    r.setProperty('--b3', 'rgba(0,120,140,0.35)');
+    document.getElementById('theme-icon').textContent = '☽';
+  } else {
+    ['--navy-950','--navy-900','--navy-800','--navy-700','--navy-600','--navy-500','--navy-400',
+     '--white','--white2','--white3','--slate','--slate2','--slate3','--slate4',
+     '--b','--b2','--b3'].forEach(v => r.removeProperty(v));
+    document.getElementById('theme-icon').textContent = '☀';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(el, id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('pane-' + id).classList.add('on');
+}
+
+// ═══════════════════════════════════════════════════════════
+// IFC PARSER — browser-side, supports IFC2x3 + IFC4
+// ═══════════════════════════════════════════════════════════
+function parseIFC(text, onProgress) {
+  const lines = text.split(/\r?\n/);
+  const entities = {};
+  const byType   = {};
+
+  onProgress(10, 'Parsing entitas…');
+
+  const re = /^#(\d+)=(IFC\w+)\((.*)$/i;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim().replace(/;$/, '');
+    const m = re.exec(line);
+    if (!m) continue;
+    const id   = parseInt(m[1]);
+    const type = m[2].toUpperCase();
+    const raw  = m[3];
+    entities[id] = {type, raw};
+    if (!byType[type]) byType[type] = [];
+    byType[type].push(id);
+  }
+
+  onProgress(25, 'Membaca header & unit…');
+
+  // ── Header
+  const header = {};
+  const fnM  = text.match(/FILE_NAME\s*\(\s*'([^']*)'\s*,\s*'([^']*)'/);
+  const fdM  = text.match(/FILE_DESCRIPTION\s*\(\s*\((.*?)\)\s*,\s*'([^']*)'\s*\)/s);
+  const schM = text.match(/FILE_SCHEMA\s*\(\s*\(\s*'([^']*)'\s*\)\s*\)/);
+  if (fnM)  { header.fileName = fnM[1]; header.timeStamp = fnM[2]; }
+  if (fdM)  { header.description = fdM[1].replace(/['"]/g,'').trim(); }
+  if (schM) header.schema = schM[1];
+
+  // ── Unit system (detect MILLI, CENTI, or plain METRE for length)
+  let unitFactor = 1.0; // default: metres
+  for (const id of (byType['IFCSIUNIT'] || [])) {
+    const raw = entities[id].raw;
+    if (!raw.includes('LENGTHUNIT')) continue;
+    if (raw.includes('.MILLI.'))      unitFactor = 0.001;
+    else if (raw.includes('.CENTI.')) unitFactor = 0.01;
+    else                              unitFactor = 1.0;
+    header.lengthUnit = unitFactor === 0.001 ? 'mm' : unitFactor === 0.01 ? 'cm' : 'm';
+    break;
+  }
+  header.lengthUnit = header.lengthUnit || 'm';
+
+  // ── Project / Building / Site
+  const projId = (byType['IFCPROJECT']  || [])[0];
+  const bldgId = (byType['IFCBUILDING'] || [])[0];
+  const siteId = (byType['IFCSITE']     || [])[0];
+  if (projId) { const p = splitP(entities[projId].raw); header.projectName = clean(p[2]); header.longName = clean(p[4]); }
+  if (bldgId) { const p = splitP(entities[bldgId].raw); header.buildingName = clean(p[2]); }
+  if (siteId) { const p = splitP(entities[siteId].raw); header.siteName = clean(p[2]); }
+
+  // ── Persons / application
+  const ownerIds = byType['IFCOWNERHISTORY'] || [];
+  if (ownerIds.length) {
+    const raw = entities[ownerIds[0]].raw;
+    const refs = raw.match(/#(\d+)/g);
+    if (refs) {
+      for (const ref of refs) {
+        const rid = parseInt(ref.slice(1));
+        if (!entities[rid]) continue;
+        if (entities[rid].type === 'IFCPERSONANDORGANIZATION') {
+          const pp = splitP(entities[rid].raw);
+          const personRef = parseInt((pp[0]||'').replace('#',''));
+          if (entities[personRef]?.type === 'IFCPERSON') {
+            const pp2 = splitP(entities[personRef].raw);
+            header.author = [clean(pp2[2]), clean(pp2[1])].filter(Boolean).join(' ') || clean(pp2[0]);
+          }
+        }
+        if (entities[rid].type === 'IFCAPPLICATION') {
+          const ap = splitP(entities[rid].raw);
+          header.application = clean(ap[3] || ap[2]);
+        }
+      }
+    }
+  }
+
+  // ── Postal address
+  const addrs = byType['IFCPOSTALADDRESS'] || [];
+  if (addrs.length) {
+    const p = splitP(entities[addrs[0]].raw);
+    const city  = clean(p[6]);
+    const region= clean(p[8]);
+    if (city || region) header.address = [city, region].filter(Boolean).join(', ');
+  }
+
+  onProgress(40, 'Membaca storey & spatial containment…');
+
+  // ── Storeys with CORRECT elevation parsing
+  const storeys = {};
+  const storeyRe = /^#(\d+)=IFCBUILDINGSTOREY\('[^']*',#\d+,'([^']*)'[^,]*,'[^']*',#\d+,[^,]*,'[^']*',\.[A-Z]+\.,([^)]+)\)/gim;
+  for (const m of text.matchAll(storeyRe)) {
+    const id = parseInt(m[1]);
+    const name = m[2].trim();
+    const elevRaw = m[3].trim();
+    const elevNative = parseFloat(elevRaw) || 0;
+    storeys[id] = {id, name, elevNative, elevM: round4(elevNative * unitFactor), elements: [], typeCounts: {}};
+  }
+  // Fallback: parse byType if regex missed some
+  for (const id of (byType['IFCBUILDINGSTOREY'] || [])) {
+    if (storeys[id]) continue;
+    const raw   = entities[id].raw;
+    const parts = splitP(raw);
+    const name  = clean(parts[2]) || `Level ${id}`;
+    // last numeric token before closing paren
+    const nums  = raw.match(/[-\d.E+]+/g) || [];
+    const elevNative = parseFloat(nums[nums.length - 1]) || 0;
+    storeys[id] = {id, name, elevNative, elevM: round4(elevNative * unitFactor), elements: [], typeCounts: {}};
+  }
+
+  // ── Spatial containment: storey → element ids
+  const storeyElems = {};
+  for (const relId of (byType['IFCRELCONTAINEDINSPATIALSTRUCTURE'] || [])) {
+    const raw = entities[relId].raw;
+    const m = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const elemIds = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    const sid = parseInt(m[2]);
+    if (sid in storeys) storeyElems[sid] = elemIds;
+  }
+
+  onProgress(55, 'Membaca quantity sets…');
+
+  // ── Quantity sets: IFCQUANTITYVOLUME / AREA / LENGTH
+  const qtyVals = {}; // id -> {name, val, qtype}
+  for (const [type, ids] of [
+    ['IFCQUANTITYVOLUME',  byType['IFCQUANTITYVOLUME']  || []],
+    ['IFCQUANTITYAREA',    byType['IFCQUANTITYAREA']    || []],
+    ['IFCQUANTITYLENGTH',  byType['IFCQUANTITYLENGTH']  || []],
+  ]) {
+    for (const id of ids) {
+      const raw   = entities[id].raw;
+      const parts = splitP(raw);
+      const name  = clean(parts[0]);
+      const val   = parseFloat(parts[3]);
+      if (!isNaN(val)) qtyVals[id] = {name, val, qtype: type};
+    }
+  }
+
+  // ── IFCELEMENTQUANTITY -> qty id list
+  // FIX: use findAll on full raw to grab last parenthesised group (#id,#id,...)
+  const elemQtySet = {};
+  for (const id of (byType['IFCELEMENTQUANTITY'] || [])) {
+    const raw = entities[id].raw;
+    const groups = [...raw.matchAll(/\(([#\d,\s]+)\)/g)];
+    const last   = groups.length ? groups[groups.length - 1][1] : '';
+    const ids    = last.split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    elemQtySet[id] = ids;
+  }
+
+  // ── IFCRELDEFINESBYPROPERTIES -> element -> qty set
+  const elemToQtySets = {};
+  for (const relId of (byType['IFCRELDEFINESBYPROPERTIES'] || [])) {
+    const raw = entities[relId].raw;
+    const m   = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const elemIds = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    const qsId    = parseInt(m[2]);
+    if (qsId in elemQtySet) {
+      for (const eid of elemIds) {
+        if (!elemToQtySets[eid]) elemToQtySets[eid] = [];
+        elemToQtySets[eid].push(qsId);
+      }
+    }
+  }
+
+  function getQty(eid) {
+    const r = {GrossVolume:0,NetVolume:0,GrossArea:0,NetArea:0,GrossSideArea:0,NetSideArea:0,Length:0,Height:0,Width:0};
+    for (const qsId of (elemToQtySets[eid] || [])) {
+      for (const qid of (elemQtySet[qsId] || [])) {
+        const q = qtyVals[qid];
+        if (q && q.name in r) r[q.name] += q.val;
+      }
+    }
+    // Convert length quantities from native unit to metres
+    r.Length_m  = round4(r.Length  * unitFactor);
+    r.Height_m  = round4(r.Height  * unitFactor);
+    r.Width_m   = round4(r.Width   * unitFactor);
+    return r;
+  }
+
+  onProgress(70, 'Membaca material…');
+
+  // ── Materials
+  const matNames = {};
+  for (const id of (byType['IFCMATERIAL'] || [])) {
+    const parts = splitP(entities[id].raw);
+    const name  = clean(parts[0]);
+    if (name && name !== '$') matNames[id] = name;
+  }
+  const matConst = {};
+  for (const id of (byType['IFCMATERIALCONSTITUENT'] || [])) {
+    const raw  = entities[id].raw;
+    const refs = [...raw.matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+    const name = refs.map(r => matNames[r]).find(Boolean) || clean(splitP(raw)[0]);
+    if (name && name !== '$') matConst[id] = name;
+  }
+  const matCSet = {};
+  for (const id of (byType['IFCMATERIALCONSTITUENTSET'] || [])) {
+    const raw  = entities[id].raw;
+    const refs = [...raw.matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+    matCSet[id] = refs.map(r => matConst[r]).filter(Boolean);
+  }
+  const matLayer = {};
+  for (const id of (byType['IFCMATERIALLAYER'] || [])) {
+    const raw  = entities[id].raw;
+    const refs = [...raw.matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+    matLayer[id] = refs.map(r => matNames[r]).find(Boolean) || '';
+  }
+  const matLayerSet = {};
+  for (const id of (byType['IFCMATERIALLAYERSET'] || [])) {
+    const raw  = entities[id].raw;
+    const refs = [...raw.matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+    const mats = refs.map(r => matLayer[r] || matNames[r]).filter(Boolean);
+    matLayerSet[id] = mats;
+  }
+  const elemMat = {};
+  for (const relId of (byType['IFCRELASSOCIATESMATERIAL'] || [])) {
+    const raw   = entities[relId].raw;
+    const m     = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const elemIds = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    const mid     = parseInt(m[2]);
+    const label   = matNames[mid]
+      || matCSet[mid]?.join('; ')
+      || matLayerSet[mid]?.join('; ')
+      || matConst[mid] || '';
+    for (const eid of elemIds) if (label) elemMat[eid] = label;
+  }
+
+  onProgress(82, 'Agregasi elemen per lantai…');
+
+  // ── Physical element types
+  const PHYS = new Set([
+    'IFCWALL','IFCWALLSTANDARDCASE','IFCSLAB','IFCCOLUMN','IFCBEAM',
+    'IFCDOOR','IFCWINDOW','IFCSTAIR','IFCSTAIRFLIGHT','IFCROOF',
+    'IFCFURNITURE','IFCFOOTING','IFCRAILING','IFCCOVERING','IFCMEMBER',
+    'IFCPLATE','IFCCURTAINWALL','IFCBUILDINGELEMENTPROXY',
+    'IFCLIGHTFIXTURE','IFCFLOWTERMINAL','IFCSYSTEMFURNITUREELEMENT',
+  ]);
+
+  const allElemTypes = {};
+  const allMaterials = {};
+
+  const sortedStoreys = Object.values(storeys).sort((a,b) => a.elevM - b.elevM);
+
+  for (const s of sortedStoreys) {
+    for (const eid of (storeyElems[s.id] || [])) {
+      if (!(eid in entities)) continue;
+      const t = entities[eid].type;
+      if (!PHYS.has(t)) continue;
+
+      const q   = getQty(eid);
+      const mat = elemMat[eid] || '';
+      const rawParts = splitP(entities[eid].raw);
+      const elemName = clean(rawParts[2]) || '';
+
+      s.elements.push({
+        id: eid, type: t, name: elemName, material: mat,
+        GrossVolume:   round4(q.GrossVolume),
+        NetVolume:     round4(q.NetVolume),
+        GrossArea:     round4(q.GrossArea),
+        NetArea:       round4(q.NetArea),
+        GrossSideArea: round4(q.GrossSideArea),
+        Length_m:      q.Length_m,
+        Height_m:      q.Height_m,
+        Width_m:       q.Width_m,
+      });
+
+      s.typeCounts[t] = (s.typeCounts[t] || 0) + 1;
+      allElemTypes[t] = (allElemTypes[t] || 0) + 1;
+
+      if (mat) {
+        for (const ml of mat.split(';').map(x => x.trim()).filter(Boolean))
+          allMaterials[ml] = (allMaterials[ml] || 0) + 1;
+      }
+    }
+
+    s.totals = {
+      cnt:          s.elements.length,
+      GrossVolume:  round4(s.elements.reduce((a,e) => a + e.GrossVolume, 0)),
+      NetVolume:    round4(s.elements.reduce((a,e) => a + e.NetVolume,   0)),
+      GrossArea:    round4(s.elements.reduce((a,e) => a + e.GrossArea,   0)),
+      GrossSideArea:round4(s.elements.reduce((a,e) => a + e.GrossSideArea,0)),
+      Length_m:     round4(s.elements.reduce((a,e) => a + e.Length_m,   0)),
+    };
+  }
+
+  onProgress(95, 'Menyiapkan dashboard…');
+
+  return {
+    header,
+    schema: header.schema || 'IFC',
+    storeys: sortedStoreys,
+    allElemTypes,
+    allMaterials,
+    byType,
+    totalEntities: Object.keys(entities).length,
+    rawLines: lines.length,
+    unitFactor,
+  };
+}
+
+// ── param splitter (handles nested parens + strings)
+function splitP(s) {
+  const parts = []; let depth = 0, cur = '', inStr = false;
+  for (const c of s) {
+    if (c === "'" && !inStr) { inStr = true; cur += c; }
+    else if (c === "'" && inStr) { inStr = false; cur += c; }
+    else if (!inStr && c === '(') { depth++; cur += c; }
+    else if (!inStr && c === ')') { depth--; cur += c; }
+    else if (!inStr && c === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  parts.push(cur.trim());
+  return parts;
+}
+function clean(s) {
+  if (!s) return '';
+  // Strip leading/trailing quotes and any trailing ) left by entity parser
+  return s.replace(/^'+|'+$/g,'').replace(/\)$/, '').trim();
+}
+function round4(v) { return Math.round(v * 10000) / 10000; }
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — OVERVIEW
+// ═══════════════════════════════════════════════════════════
+function renderOverview() {
+  const d = DATA;
+  const totalElem = d.storeys.reduce((s,st) => s + st.totals.cnt, 0);
+  const totalVol  = round4(d.storeys.reduce((s,st) => s + st.totals.GrossVolume, 0));
+  const totalArea = round4(d.storeys.reduce((s,st) => s + st.totals.GrossArea,   0));
+  const totalMats = Object.keys(d.allMaterials).length;
+
+  document.getElementById('kpis').innerHTML = [
+    {cls:'c-tq',  icon:'🧱', lbl:'Total Elemen',  val:fmti(totalElem),  sub:Object.keys(d.allElemTypes).length+' tipe'},
+    {cls:'c-sage',icon:'🏗',  lbl:'Lantai/Level',  val:d.storeys.length, sub:'level bangunan'},
+    {cls:'c-gold',icon:'📦', lbl:'Volume Bruto',  val:fmt(totalVol,2),  sub:'m³ aktual IFC'},
+    {cls:'c-tq',  icon:'⬛', lbl:'Luas Area',     val:fmt(totalArea,2), sub:'m² aktual IFC'},
+    {cls:'c-lil', icon:'🎨', lbl:'Material',      val:fmti(totalMats),  sub:'jenis tercatat'},
+    {cls:'c-sl',  icon:'📄', lbl:'Entitas',       val:fmti(d.totalEntities),sub:d.schema},
+  ].map(k=>`<div class="kpi ${k.cls}">
+    <div class="kpi-icon">${k.icon}</div>
+    <div class="kpi-label">${k.lbl}</div>
+    <div class="kpi-val">${k.val}</div>
+    <div class="kpi-sub">${k.sub}</div>
+  </div>`).join('');
+
+  // Element list + donut
+  const ets = Object.entries(d.allElemTypes).sort((a,b)=>b[1]-a[1]);
+  const etTotal = ets.reduce((s,[,v])=>s+v,0);
+  document.getElementById('elem-badge').textContent = etTotal+' total';
+  document.getElementById('elist').innerHTML = ets.map(([t,c])=>{
+    const cfg = ECFG[t]||{lbl:t.replace('IFC',''),col:'#3a566e'};
+    const pct = etTotal ? Math.round(c/etTotal*100) : 0;
+    return `<div class="erow">
+      <div class="edot" style="background:${cfg.col}"></div>
+      <div class="ename">${cfg.lbl}</div>
+      <div class="ebar-w"><div class="ebar" style="width:${pct}%;background:${cfg.col}"></div></div>
+      <div class="ecnt">${c}</div>
+    </div>`;
+  }).join('');
+
+  mkChart('ch-elem',{type:'doughnut',data:{
+    labels:ets.map(([t])=>(ECFG[t]||{lbl:t.replace('IFC','')}).lbl),
+    datasets:[{data:ets.map(([,v])=>v),backgroundColor:ets.map(([t])=>(ECFG[t]||{col:'#3a566e'}).col),borderWidth:0,hoverOffset:6}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:11,family:'Inter'},boxWidth:9,padding:8}},tooltip:tt()}}});
+
+  // Storeys
+  document.getElementById('storey-badge').textContent = d.storeys.length+' level';
+  document.getElementById('slist').innerHTML = [...d.storeys].reverse().map((s,i)=>`
+    <div class="srow">
+      <div class="snum">${String(d.storeys.length-i).padStart(2,'0')}</div>
+      <div class="sinfo">
+        <div class="sname">${esc(s.name)}</div>
+        <div class="selev">${s.elevM>=0?'+':''}${s.elevM.toFixed(3)} m</div>
+      </div>
+      <div class="scnt">${fmti(s.totals.cnt)}<small>elemen</small></div>
+    </div>`).join('');
+
+  mkChart('ch-stor',{type:'bar',data:{
+    labels:d.storeys.map(s=>s.name.length>14?s.name.slice(0,13)+'…':s.name),
+    datasets:[{label:'Elemen',data:d.storeys.map(s=>s.totals.cnt),
+      backgroundColor:d.storeys.map((_,i)=>`hsla(${185+i*12},70%,${40+i*4}%,0.85)`),
+      borderRadius:4,borderWidth:0}]
+  },options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:tt()},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10}}},
+            y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}});
+
+  // Materials
+  const mats = Object.entries(d.allMaterials).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('mat-badge').textContent = mats.length+' jenis';
+  document.getElementById('mgrid').innerHTML = mats.slice(0,12).map(([n,c])=>`
+    <div class="mcard">
+      <div class="mname" title="${esc(n)}">${esc(n)}</div>
+      <div class="mval">${c}</div>
+      <div class="mlbl">elemen terkait</div>
+    </div>`).join('');
+
+  mkChart('ch-mat',{type:'doughnut',data:{
+    labels:mats.slice(0,10).map(([n])=>n.length>22?n.slice(0,21)+'…':n),
+    datasets:[{data:mats.slice(0,10).map(([,v])=>v),backgroundColor:MCOLS,borderWidth:0,hoverOffset:5}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:11,family:'Inter'},boxWidth:9,padding:8}},tooltip:tt()}}});
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — QTO
+// ═══════════════════════════════════════════════════════════
+function renderQTO() {
+  const d = DATA;
+  // Note
+  const hasQty = d.storeys.some(s=>s.totals.GrossVolume>0||s.totals.GrossArea>0);
+  document.getElementById('qto-note').innerHTML = hasQty
+    ? `<strong>Data aktual dari IFCELEMENTQUANTITY.</strong> Volume, luas & panjang diambil langsung dari file. Satuan panjang file: <strong>${d.header.lengthUnit||'m'}</strong> → dikonversi ke meter. Elemen tanpa quantity set menampilkan 0.`
+    : `<strong style="color:var(--gold)">⚠ Tidak ada IFCELEMENTQUANTITY ditemukan.</strong> File ini tidak menyertakan quantity set. Nilai volume & luas akan 0.`;
+  document.getElementById('qto-note').className = 'note' + (hasQty?'':' warn');
+
+  // Storey pills
+  document.getElementById('qto-pills').innerHTML =
+    `<div class="pill on" onclick="setPill(this,'all')">Semua Lantai</div>`
+    + [...d.storeys].reverse().map(s=>`<div class="pill" onclick="setPill(this,'${s.id}')">${esc(s.name)}</div>`).join('');
+
+  renderQSummary();
+  renderQTable();
+  renderQCharts();
+  renderHeatmap();
+}
+
+function setPill(el, id) {
+  document.querySelectorAll('.pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  QTO_STOREY = id;
+  renderQSummary();
+  renderQTable();
+}
+
+function activeStoreys() {
+  return QTO_STOREY === 'all'
+    ? DATA.storeys
+    : DATA.storeys.filter(s => String(s.id) === String(QTO_STOREY));
+}
+
+function buildTypeRows(ss) {
+  const agg = {};
+  ss.forEach(s => s.elements.forEach(e => {
+    const t = e.type;
+    if (!agg[t]) agg[t] = {type:t,cnt:0,GrossVolume:0,NetVolume:0,GrossArea:0,GrossSideArea:0,Length_m:0};
+    agg[t].cnt++; agg[t].GrossVolume+=e.GrossVolume; agg[t].NetVolume+=e.NetVolume;
+    agg[t].GrossArea+=e.GrossArea; agg[t].GrossSideArea+=e.GrossSideArea; agg[t].Length_m+=e.Length_m;
+  }));
+  return Object.values(agg).map(r=>({...r,
+    label:(ECFG[r.type]||{lbl:r.type.replace('IFC','')}).lbl,
+    cat:  (ECFG[r.type]||{cat:'Lain-lain'}).cat,
+    col:  (ECFG[r.type]||{col:'#3a566e'}).col,
+    GrossVolume:round4(r.GrossVolume),NetVolume:round4(r.NetVolume),
+    GrossArea:round4(r.GrossArea),GrossSideArea:round4(r.GrossSideArea),Length_m:round4(r.Length_m),
+  }));
+}
+
+function buildCatRows(tr) {
+  const cats={};
+  tr.forEach(r=>{
+    if(!cats[r.cat]) cats[r.cat]={label:r.cat,cat:r.cat,cnt:0,GrossVolume:0,NetVolume:0,GrossArea:0,GrossSideArea:0,Length_m:0,col:r.col};
+    const c=cats[r.cat];
+    c.cnt+=r.cnt;c.GrossVolume+=r.GrossVolume;c.NetVolume+=r.NetVolume;
+    c.GrossArea+=r.GrossArea;c.GrossSideArea+=r.GrossSideArea;c.Length_m+=r.Length_m;
+  });
+  return Object.values(cats).map(r=>({...r,GrossVolume:round4(r.GrossVolume),GrossArea:round4(r.GrossArea),Length_m:round4(r.Length_m)}));
+}
+
+function buildMatRows(ss) {
+  const agg={};
+  ss.forEach(s=>s.elements.forEach(e=>{
+    const mats=(e.material||'').split(';').map(m=>m.trim()).filter(Boolean);
+    mats.forEach(m=>{
+      if(!agg[m]) agg[m]={label:m,cat:'Material',cnt:0,GrossVolume:0,GrossArea:0,NetVolume:0,GrossSideArea:0,Length_m:0};
+      agg[m].cnt++; const div=Math.max(mats.length,1);
+      agg[m].GrossVolume+=e.GrossVolume/div; agg[m].GrossArea+=e.GrossArea/div;
+    });
+  }));
+  return Object.values(agg).map((r,i)=>({...r,col:MCOLS[i%MCOLS.length],GrossVolume:round4(r.GrossVolume),GrossArea:round4(r.GrossArea)}))
+    .sort((a,b)=>b.cnt-a.cnt);
+}
+
+function renderQSummary() {
+  const ss = activeStoreys();
+  const tr = buildTypeRows(ss);
+  const cnt = tr.reduce((s,r)=>s+r.cnt,0);
+  const gv  = round4(tr.reduce((s,r)=>s+r.GrossVolume,0));
+  const nv  = round4(tr.reduce((s,r)=>s+r.NetVolume,0));
+  const ga  = round4(tr.reduce((s,r)=>s+r.GrossArea,0));
+  const gsa = round4(tr.reduce((s,r)=>s+r.GrossSideArea,0));
+  const len = round4(tr.reduce((s,r)=>s+r.Length_m,0));
+  const sl  = QTO_STOREY==='all'?'Semua Lantai':(DATA.storeys.find(s=>String(s.id)===String(QTO_STOREY))?.name||'—');
+
+  document.getElementById('qsum').innerHTML = [
+    {cls:'c-tq',  lbl:'Lantai',       val:sl,       unit:''},
+    {cls:'c-teal',lbl:'Total Elemen', val:fmti(cnt),unit:'unit'},
+    {cls:'c-gold',lbl:'Vol. Bruto',   val:fmt(gv,3),unit:'m³'},
+    {cls:'c-sage',lbl:'Vol. Neto',    val:fmt(nv,3),unit:'m³'},
+    {cls:'c-lil', lbl:'Luas',         val:fmt(ga,2),unit:'m²'},
+    {cls:'c-rose',lbl:'Panjang Linear',val:fmt(len,2),unit:'m'},
+  ].map(c=>`<div class="qsc ${c.cls}">
+    <div class="qsc-lbl">${c.lbl}</div>
+    <div class="qsc-val">${c.val}</div>
+    <div class="qsc-unit">${c.unit}</div>
+  </div>`).join('');
+}
+
+function renderQTable() {
+  const ss    = activeStoreys();
+  const group = document.getElementById('qto-group').value;
+  const q     = (document.getElementById('qsearch')?.value||'').toLowerCase();
+  let rows    = group==='type' ? buildTypeRows(ss) : group==='cat' ? buildCatRows(buildTypeRows(ss)) : buildMatRows(ss);
+  if (q) rows = rows.filter(r=>(r.label||'').toLowerCase().includes(q)||(r.cat||'').toLowerCase().includes(q));
+
+  rows.sort((a,b)=>{
+    const va=a[QTO_SORT.col]??0, vb=b[QTO_SORT.col]??0;
+    return typeof va==='string' ? QTO_SORT.dir*va.localeCompare(vb) : QTO_SORT.dir*(va-vb);
+  });
+
+  const maxV = Math.max(...rows.map(r=>r.GrossVolume),0.001);
+  const totC = rows.reduce((s,r)=>s+r.cnt,0);
+  const totV = round4(rows.reduce((s,r)=>s+r.GrossVolume,0));
+  const totA = round4(rows.reduce((s,r)=>s+r.GrossArea,0));
+  const totL = round4(rows.reduce((s,r)=>s+(r.Length_m||0),0));
+
+  const titles={type:'QTO per Tipe Elemen',cat:'QTO per Kategori',mat:'QTO per Material'};
+  document.getElementById('qt-title').textContent = titles[group];
+  document.getElementById('qt-rows').textContent  = rows.length+' baris';
+
+  const cols=[
+    {k:'label',lbl:'Nama'},{k:'cat',lbl:'Kategori'},
+    {k:'cnt',lbl:'Jml'},{k:'GrossVolume',lbl:'Vol.Bruto (m³)'},
+    {k:'NetVolume',lbl:'Vol.Neto (m³)'},{k:'GrossArea',lbl:'Luas (m²)'},
+    {k:'Length_m',lbl:'Panjang (m)'},{k:'_b',lbl:'%',nosort:true},
+  ];
+  document.getElementById('qt-head').innerHTML=`<tr>${cols.map(c=>`
+    <th class="${QTO_SORT.col===c.k?'sorted':''}" ${!c.nosort?`onclick="sortQ('${c.k}')"`:''}>${c.lbl}${!c.nosort?` <span style="opacity:.4">${QTO_SORT.col===c.k?(QTO_SORT.dir>0?'↑':'↓'):'↕'}</span>`:''}</th>`).join('')}</tr>`;
+
+  document.getElementById('qt-body').innerHTML = rows.map(r=>{
+    const pct=Math.round(r.GrossVolume/maxV*100);
+    return `<tr>
+      <td><div class="tcell"><div class="tdot" style="background:${r.col}"></div><div class="tname">${esc(r.label)}</div></div></td>
+      <td style="font-size:11px;color:var(--slate3)">${esc(r.cat||'—')}</td>
+      <td class="tv tv1">${fmti(r.cnt)}</td>
+      <td class="tv tv1">${fmt(r.GrossVolume,3)}</td>
+      <td class="tv" style="color:var(--sage)">${fmt(r.NetVolume,3)}</td>
+      <td class="tv tv2">${fmt(r.GrossArea,2)}</td>
+      <td class="tv tv3">${r.Length_m>0?fmt(r.Length_m,2):'<span style="color:var(--navy-500)">—</span>'}</td>
+      <td><div style="display:flex;align-items:center;gap:5px">
+        <div class="mbar-w"><div class="mbar" style="width:${pct}%;background:${r.col}"></div></div>
+        <span style="font-size:10px;color:var(--slate3);font-family:'JetBrains Mono',monospace;min-width:24px">${pct}%</span>
+      </div></td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--slate3)">Tidak ada data</td></tr>`;
+
+  document.getElementById('qt-foot').innerHTML=`<tr>
+    <td colspan="2" style="color:var(--slate3)">Total</td>
+    <td>${fmti(totC)}</td>
+    <td>${fmt(totV,3)} <span class="tunit">m³</span></td>
+    <td>—</td>
+    <td>${fmt(totA,2)} <span class="tunit">m²</span></td>
+    <td>${fmt(totL,2)} <span class="tunit">m</span></td>
+    <td></td>
+  </tr>`;
+}
+
+function sortQ(col) {
+  QTO_SORT={col, dir: QTO_SORT.col===col ? -QTO_SORT.dir : -1};
+  renderQTable();
+}
+
+function renderQCharts() {
+  const d = DATA;
+  const labels = d.storeys.map(s=>s.name.length>13?s.name.slice(0,12)+'…':s.name);
+
+  // Stacked volume bar
+  const top5 = Object.entries(d.allElemTypes).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t])=>t);
+  mkChart('ch-qvol',{type:'bar',data:{labels,datasets:top5.map(t=>({
+    label:(ECFG[t]||{lbl:t.replace('IFC','')}).lbl,
+    data:d.storeys.map(s=>round4(s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0))),
+    backgroundColor:(ECFG[t]||{col:'#3a566e'}).col+'bb',borderRadius:3,borderWidth:0,
+  }))},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
+    scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
+            y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m³',color:tc(),font:{size:9}}}}}});
+
+  // Area grouped bar
+  mkChart('ch-qarea',{type:'bar',data:{labels,datasets:[
+    {label:'GrossArea (m²)',data:d.storeys.map(s=>s.totals.GrossArea),backgroundColor:'rgba(0,181,181,0.65)',borderRadius:3,borderWidth:0},
+    {label:'SideArea (m²)', data:d.storeys.map(s=>s.totals.GrossSideArea),backgroundColor:'rgba(0,181,181,0.28)',borderRadius:3,borderWidth:0},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
+    scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
+            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m²',color:tc(),font:{size:9}}}}}});
+}
+
+function renderHeatmap() {
+  const d = DATA;
+  const types = Object.keys(d.allElemTypes).sort((a,b)=>d.allElemTypes[b]-d.allElemTypes[a]).slice(0,9);
+  const labelW = Math.min(120, Math.max(90, Math.round(types.length > 0 ? 600/types.length : 80)));
+  const rowLW  = 118;
+
+  const matrix = d.storeys.map(s=>types.map(t=>s.elements.filter(e=>e.type===t).length));
+  const maxV   = Math.max(...matrix.flat(), 1);
+
+  function cellBg(v) {
+    const t = v/maxV;
+    // navy -> turquoise gradient
+    const r = Math.round(9  + t*(0  - 9));
+    const g = Math.round(18 + t*(181-18));
+    const b = Math.round(33 + t*(181-33));
+    return `rgb(${r},${g},${b})`;
+  }
+  function cellTx(v) { return v/maxV > 0.45 ? 'rgba(5,13,26,0.9)' : 'var(--slate3)'; }
+
+  document.getElementById('heatmap').innerHTML = `<div class="hm-wrap">
+    <div class="hm-title-row">
+      <div class="hm-corner" style="width:${rowLW}px"></div>
+      ${types.map(t=>`<div class="hm-clbl" style="max-width:${labelW}px">${(ECFG[t]||{lbl:t.replace('IFC','')}).lbl}</div>`).join('')}
+    </div>
+    ${d.storeys.map((s,ri)=>`<div class="hm-row">
+      <div class="hm-rlbl" style="width:${rowLW}px">${esc(s.name)}</div>
+      ${types.map((_,ci)=>{const v=matrix[ri][ci];return `<div class="hm-cell" style="background:${cellBg(v)};color:${cellTx(v)}" title="${types[ci]}: ${v}">${v||''}</div>`;}).join('')}
+    </div>`).join('')}
+    <div class="hm-leg"><span>0</span><div class="hm-legbar"></div><span>${maxV}</span><span style="margin-left:6px">unit per lantai</span></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — BIM CHECKLIST
+// ═══════════════════════════════════════════════════════════
+function renderBIM() {
+  const d   = DATA;
+  const et  = d.allElemTypes;
+  const has = t => (et[t]||0) > 0;
+  const cnt = t => et[t]||0;
+  const hasQty = d.storeys.some(s=>s.totals.GrossVolume>0||s.totals.GrossArea>0);
+
+  const cats = [
+    {title:'Struktur Spasial',items:[
+      {n:'IfcProject terdefinisi', s:d.header.projectName?'p':'f', d:'Proyek utama',         v:d.header.projectName||'—'},
+      {n:'IfcBuilding terdefinisi',s:d.header.buildingName?'p':'w',d:'Gedung',               v:d.header.buildingName||'—'},
+      {n:'Lantai/Storey ada',      s:d.storeys.length>0?'p':'f',   d:'Hierarki vertikal',   v:d.storeys.length+' level'},
+      {n:'Elevasi terisi',         s:d.storeys.some(s=>s.elevM!==0)?'p':'w', d:'Nilai elevasi tidak semua 0', v:d.storeys.map(s=>s.elevM.toFixed(2)+'m').join(', ')},
+      {n:'Elemen dikontain storey',s:Object.keys(d.byType['IFCRELCONTAINEDINSPATIALSTRUCTURE']||{}).length>0||d.storeys.some(s=>s.elements.length>0)?'p':'f',d:'IFCRELCONTAINED…',v:d.storeys.filter(s=>s.elements.length>0).length+'/'+d.storeys.length+' storey terisi'},
+    ]},
+    {title:'Elemen Arsitektur',items:[
+      {n:'Dinding ada',       s:has('IFCWALL')||has('IFCWALLSTANDARDCASE')?'p':'w',d:'IfcWall',           v:(cnt('IFCWALL')+cnt('IFCWALLSTANDARDCASE'))},
+      {n:'Pelat ada',         s:has('IFCSLAB')?'p':'w',  d:'IfcSlab',           v:cnt('IFCSLAB')},
+      {n:'Pintu ada',         s:has('IFCDOOR')?'p':'i',  d:'IfcDoor',           v:cnt('IFCDOOR')},
+      {n:'Jendela ada',       s:has('IFCWINDOW')?'p':'i',d:'IfcWindow',         v:cnt('IFCWINDOW')},
+      {n:'Atap ada',          s:has('IFCROOF')?'p':'i',  d:'IfcRoof',           v:cnt('IFCROOF')},
+      {n:'Curtain Wall',      s:has('IFCCURTAINWALL')?'p':'i',d:'IfcCurtainWall',v:cnt('IFCCURTAINWALL')},
+    ]},
+    {title:'Elemen Struktur',items:[
+      {n:'Kolom ada',  s:has('IFCCOLUMN')?'p':'w', d:'IfcColumn', v:cnt('IFCCOLUMN')},
+      {n:'Balok ada',  s:has('IFCBEAM')?'p':'w',   d:'IfcBeam',   v:cnt('IFCBEAM')},
+      {n:'Member ada', s:has('IFCMEMBER')?'p':'i', d:'IfcMember', v:cnt('IFCMEMBER')},
+      {n:'Plate ada',  s:has('IFCPLATE')?'p':'i',  d:'IfcPlate',  v:cnt('IFCPLATE')},
+      {n:'Pondasi ada',s:has('IFCFOOTING')?'p':'i',d:'IfcFooting',v:cnt('IFCFOOTING')},
+    ]},
+    {title:'Kuantitas Real',items:[
+      {n:'IFCELEMENTQUANTITY ada', s:hasQty?'p':'f',           d:'Quantity sets',   v:hasQty?'✓ Ada':'✗ Tidak ada'},
+      {n:'Volume tersedia',        s:d.storeys.some(s=>s.totals.GrossVolume>0)?'p':'w',d:'GrossVolume>0',v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossVolume,0),2)+' m³'},
+      {n:'Luas tersedia',          s:d.storeys.some(s=>s.totals.GrossArea>0)?'p':'w',  d:'GrossArea>0',  v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossArea,0),2)+' m²'},
+      {n:'Unit length terdeteksi', s:'p',                      d:'Satuan panjang',  v:d.header.lengthUnit+' → dikonversi ke m'},
+      {n:'Elevasi dikonversi',     s:'p',                      d:'Native → meter',  v:'×'+d.unitFactor},
+    ]},
+    {title:'Material & Properti',items:[
+      {n:'Material terdefinisi',  s:Object.keys(d.allMaterials).length>0?'p':'w',d:'IFCMATERIAL',    v:Object.keys(d.allMaterials).length+' jenis'},
+      {n:'Pset tersedia',         s:(d.byType['IFCPROPERTYSET']||[]).length>0?'p':'i',d:'IfcPropertySet',v:(d.byType['IFCPROPERTYSET']||[]).length+' set'},
+      {n:'Skema IFC4/2x3',        s:['IFC4','IFC2X3'].some(s=>d.schema?.includes(s))?'p':'w',d:'Versi skema',v:d.schema},
+      {n:'Aplikasi tercatat',     s:d.header.application?'p':'i',d:'Authoring tool',v:esc(d.header.application||'—')},
+    ]},
+    {title:'Kelengkapan Spasial',items:[
+      {n:'Semua storey berisi elemen',s:d.storeys.every(s=>s.totals.cnt>0)?'p':'w',d:'Tidak ada lantai kosong',v:d.storeys.filter(s=>s.totals.cnt>0).length+'/'+d.storeys.length},
+      {n:'Element Proxy',          s:has('IFCBUILDINGELEMENTPROXY')?'w':'p',d:'Sebaiknya dikonversi ke tipe proper',v:cnt('IFCBUILDINGELEMENTPROXY')+' proxy'},
+      {n:'Furnitur ada',           s:has('IFCFURNITURE')?'p':'i',d:'IfcFurniture',v:cnt('IFCFURNITURE')},
+      {n:'MEP ada',                s:(has('IFCFLOWTERMINAL')||has('IFCLIGHTFIXTURE'))?'p':'i',d:'Flow/Light',v:cnt('IFCFLOWTERMINAL')+cnt('IFCLIGHTFIXTURE')},
+    ]},
+  ];
+
+  let tot=0,maxTot=0;
+  cats.forEach(c=>{
+    let cp=0,cm=0;
+    c.items.forEach(it=>{cm+=2;cp+={p:2,w:1,i:1,f:0}[it.s]||0;});
+    c.score=Math.round(cp/cm*100); tot+=cp; maxTot+=cm;
+  });
+  const score=Math.round(tot/maxTot*100);
+  let grade,gcol,ringCol;
+  if(score>=85){grade='Sangat Baik';gcol='rgba(78,201,160,.12)';ringCol='var(--tq-400)';}
+  else if(score>=70){grade='Baik';gcol='rgba(0,181,181,.12)';ringCol='var(--tq-400)';}
+  else if(score>=55){grade='Cukup';gcol='rgba(232,184,75,.12)';ringCol='var(--gold)';}
+  else{grade='Perlu Perbaikan';gcol='rgba(232,96,122,.12)';ringCol='var(--rose)';}
+
+  const circ=2*Math.PI*52;
+  const ring=document.getElementById('ring-fg');
+  ring.style.stroke=ringCol;
+  setTimeout(()=>{ring.style.strokeDashoffset=circ-(score/100*circ);},300);
+  const rn=document.getElementById('ring-num');
+  rn.style.color=ringCol; let n=0;
+  const inc=setInterval(()=>{n=Math.min(n+2,score);rn.textContent=n;if(n>=score)clearInterval(inc);},18);
+  const rg=document.getElementById('ring-grade');
+  rg.textContent=grade;
+  rg.style.cssText=`background:${gcol};color:${ringCol};font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;`;
+
+  document.getElementById('sb').innerHTML=cats.map(c=>{
+    const col=c.score>=80?'var(--tq-400)':c.score>=60?'var(--gold)':'var(--rose)';
+    return `<div class="sbr"><span class="sbl">${c.title}</span>
+      <div class="sbb"><div class="sbf" style="width:${c.score}%;background:${col}"></div></div>
+      <span class="sbv">${c.score}%</span></div>`;
+  }).join('');
+
+  document.getElementById('bim-grid').innerHTML=cats.map(c=>{
+    const sc=c.score>=80?'shi':c.score>=60?'smd':'slo';
+    return `<div class="bcat">
+      <div class="bch"><span class="bct">${c.title}</span><span class="bscore ${sc}">${c.score}%</span></div>
+      ${c.items.map(it=>{
+        const im={p:'✓',w:'!',f:'✗',i:'i'};
+        const cl={p:'bp',w:'bw',f:'bf',i:'bi'}[it.s];
+        return `<div class="bitem">
+          <div class="bico ${cl}">${im[it.s]}</div>
+          <div class="btxt"><div class="bn">${it.n}</div><div class="bd">${it.d}</div></div>
+          <div class="bbadge" title="${it.v}">${it.v}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  // Auto-generate recommendations from failures/warnings
+  const fails = cats.flatMap(c=>c.items.filter(i=>i.s==='f').map(i=>({level:'f',title:'✗ Kritis: '+i.n,desc:'Tidak ditemukan atau tidak terdefinisi. Perlu diperbaiki untuk kelengkapan BIM.',col:'var(--rose)'})));
+  const warns = cats.flatMap(c=>c.items.filter(i=>i.s==='w').map(i=>({level:'w',title:'⚡ Perlu perhatian: '+i.n,desc:'Ada tapi kurang lengkap atau perlu ditinjau ulang.',col:'var(--gold)'})));
+  const recs  = [...fails,...warns].slice(0,6);
+  if (!recs.length) {
+    document.getElementById('bim-recs').innerHTML=`<div style="grid-column:1/-1;text-align:center;color:var(--tq-300);padding:20px;font-size:13px">✓ Model sudah memenuhi semua kriteria utama</div>`;
+  } else {
+    document.getElementById('bim-recs').innerHTML=recs.map(r=>`
+      <div style="padding:12px;border-radius:9px;border:1px solid color-mix(in srgb,${r.col} 25%,transparent);background:color-mix(in srgb,${r.col} 6%,transparent)">
+        <div style="font-size:12px;font-weight:600;color:${r.col};margin-bottom:4px">${r.title}</div>
+        <div style="font-size:11px;color:var(--slate);line-height:1.55">${r.desc}</div>
+      </div>`).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — PROPERTIES
+// ═══════════════════════════════════════════════════════════
+function renderProps() {
+  const d = DATA;
+  // Collect real quantity stats across all elements
+  const QN = {GrossVolume:'m³',NetVolume:'m³',GrossArea:'m²',NetArea:'m²',GrossSideArea:'m²',Length_m:'m',Height_m:'m',Width_m:'m'};
+  const stats = {};
+  for (const k of Object.keys(QN)) stats[k] = {sum:0, count:0, min:Infinity, max:-Infinity};
+  for (const s of d.storeys) {
+    for (const e of s.elements) {
+      for (const k of Object.keys(QN)) {
+        const v = e[k];
+        if (v > 0) {
+          stats[k].sum   += v;
+          stats[k].count += 1;
+          stats[k].min    = Math.min(stats[k].min, v);
+          stats[k].max    = Math.max(stats[k].max, v);
+        }
+      }
+    }
+  }
+  ALL_PROPS = Object.keys(QN).map(k => {
+    const st = stats[k];
+    const hasData = st.count > 0;
+    return {
+      name:  k,
+      value: hasData ? `Σ ${fmt(st.sum,3)}  |  avg ${fmt(st.sum/st.count,3)}  |  n=${st.count}` : '—',
+      unit:  QN[k],
+    };
+  });
+  document.getElementById('prop-badge').textContent = ALL_PROPS.length+' atribut kuantitas';
+  renderPropTable(ALL_PROPS);
+
+  document.getElementById('ent-badge').textContent = Object.keys(d.allElemTypes).length+' tipe fisik';
+  document.getElementById('ecloud').innerHTML = Object.entries(d.allElemTypes)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([t,c])=>`<span class="etag ${c>10?'hi':''}" title="${c} elemen">${t.replace('IFC','')} (${c})</span>`)
+    .join('');
+
+  const fields=[
+    {l:'Nama Proyek',    v:d.header.projectName||d.header.longName},
+    {l:'Nama Gedung',    v:d.header.buildingName},
+    {l:'Penulis',        v:d.header.author},
+    {l:'Aplikasi',       v:d.header.application},
+    {l:'Lokasi',         v:d.header.address},
+    {l:'Skema',          v:d.schema},
+    {l:'Satuan Panjang', v:(d.header.lengthUnit||'m')+' → konversi ke m (×'+d.unitFactor+')'},
+    {l:'Timestamp',      v:d.header.timeStamp},
+    {l:'File',           v:d.header.fileName},
+    {l:'Total Entitas',  v:fmti(d.totalEntities)},
+    {l:'Total Baris',    v:fmti(d.rawLines)},
+  ].filter(f=>f.v);
+  document.getElementById('hinfo').innerHTML=fields.map(f=>`
+    <div class="hcard"><div class="hlbl">${f.l}</div><div class="hval">${esc(f.v)}</div></div>`).join('');
+}
+
+function renderPropTable(props) {
+  document.getElementById('ptbody').innerHTML = props.map(p=>`
+    <tr>
+      <td class="pkey">${esc(p.name)}</td>
+      <td class="pmono" style="font-size:11px">${esc(String(p.value??'—'))}</td>
+      <td><span class="pbadge">${p.unit||'—'}</span></td>
+    </tr>
+  `).join('')||`<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--slate3)">—</td></tr>`;
+}
+function filterProps(q) {
+  renderPropTable(q ? ALL_PROPS.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())) : ALL_PROPS);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportCSV() {
+  const ss    = activeStoreys();
+  const group = document.getElementById('qto-group').value;
+  const rows  = group==='type' ? buildTypeRows(ss) : group==='cat' ? buildCatRows(buildTypeRows(ss)) : buildMatRows(ss);
+  const sl    = QTO_STOREY==='all'?'Semua Lantai':(DATA.storeys.find(s=>String(s.id)===String(QTO_STOREY))?.name||'—');
+  const csv   = [
+    ['# IFC QTO —', DATA.header.buildingName||DATA.header.projectName||DATA.header.fileName],
+    ['# Lantai:', sl],
+    ['# Data aktual IFCELEMENTQUANTITY'],
+    ['# Tanggal:', new Date().toLocaleDateString('id-ID')],
+    [],
+    ['Nama','Kategori','Jumlah','Vol.Bruto (m³)','Vol.Neto (m³)','Luas (m²)','Panjang (m)'],
+    ...rows.map(r=>[r.label,r.cat||'—',r.cnt,r.GrossVolume,r.NetVolume||0,r.GrossArea,r.Length_m||0]),
+    [],
+    ['TOTAL','',rows.reduce((s,r)=>s+r.cnt,0),
+      round4(rows.reduce((s,r)=>s+r.GrossVolume,0)),
+      round4(rows.reduce((s,r)=>s+(r.NetVolume||0),0)),
+      round4(rows.reduce((s,r)=>s+r.GrossArea,0)),
+      round4(rows.reduce((s,r)=>s+(r.Length_m||0),0))],
+  ].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download = `QTO_${(DATA.header.buildingName||'ifc').replace(/\s/g,'_')}_${sl.replace(/\s/g,'_')}.csv`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP FLOW
+// ═══════════════════════════════════════════════════════════
+function setProgress(pct, msg) {
+  document.getElementById('prog').style.width = pct + '%';
+  if (msg) document.getElementById('load-sub').textContent = msg;
+}
+
+function processFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.ifc')) {
+    alert('Harap pilih file dengan ekstensi .ifc');
+    return;
+  }
+  document.getElementById('screen-upload').style.display = 'none';
+  document.getElementById('screen-loading').style.display = 'flex';
+  document.getElementById('chip').textContent = file.name;
+  document.getElementById('chip').classList.add('show');
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    // use setTimeout to let the loading UI paint first
+    setTimeout(() => {
+      try {
+        DATA = parseIFC(e.target.result, (pct, msg) => setProgress(pct, msg));
+        if (!DATA.header.projectName && !DATA.header.buildingName)
+          DATA.header.buildingName = file.name.replace(/\.ifc$/i, '');
+
+        // render
+        setProgress(96, 'Merender ikhtisar…');
+        renderOverview();
+        setProgress(97, 'Merender QTO…');
+        renderQTO();
+        setProgress(98, 'Merender BIM checklist…');
+        renderBIM();
+        setProgress(99, 'Merender properti…');
+        renderProps();
+        setProgress(100, 'Selesai!');
+
+        // Header
+        const title = DATA.header.buildingName || DATA.header.projectName || file.name;
+        document.getElementById('prj-name').textContent = title;
+        document.title = 'IFC — ' + title;
+
+        let ts = DATA.header.timeStamp || '';
+        try { ts = new Date(ts).toLocaleDateString('id-ID',{year:'numeric',month:'long',day:'numeric'}); } catch(e){}
+        document.getElementById('prj-meta').innerHTML = [
+          DATA.header.projectName && `<div class="meta-item">📋 <span>${esc(DATA.header.projectName)}</span></div>`,
+          DATA.header.author      && `<div class="meta-item">👤 <span>${esc(DATA.header.author)}</span></div>`,
+          DATA.header.address     && `<div class="meta-item">📍 <span>${esc(DATA.header.address)}</span></div>`,
+          DATA.header.application && `<div class="meta-item">💻 <span>${esc(DATA.header.application)}</span></div>`,
+          ts && `<div class="meta-item">📅 <span>${ts}</span></div>`,
+          `<div class="meta-item">📄 <span>${DATA.schema}</span></div>`,
+          `<div class="meta-item">🔤 <span>${DATA.header.lengthUnit||'m'} → m</span></div>`,
+        ].filter(Boolean).join('');
+
+        setTimeout(() => {
+          document.getElementById('screen-loading').style.display = 'none';
+          document.getElementById('screen-dash').style.display    = 'block';
+          document.getElementById('btn-new').classList.add('show');
+        }, 200);
+
+      } catch(err) {
+        console.error(err);
+        document.getElementById('screen-loading').style.display = 'none';
+        document.getElementById('screen-upload').style.display  = 'flex';
+        document.getElementById('drop-zone').insertAdjacentHTML('beforeend',
+          `<div style="margin-top:16px;padding:12px;background:rgba(232,96,122,.1);border:1px solid rgba(232,96,122,.25);border-radius:9px;color:var(--rose);font-size:12px">
+            ⚠ Gagal memproses file: ${esc(err.message)}
+          </div>`);
+      }
+    }, 60);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function resetApp() {
+  DATA = null; QTO_STOREY = 'all'; QTO_SORT = {col:'GrossVolume',dir:-1};
+  Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
+  CHARTS = {};
+  document.getElementById('screen-dash').style.display   = 'none';
+  document.getElementById('screen-upload').style.display = 'flex';
+  document.getElementById('chip').classList.remove('show');
+  document.getElementById('btn-new').classList.remove('show');
+  document.title = 'IFC Dashboard';
+  // reset tabs
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.pane').forEach((p,i)=>p.classList.toggle('on',i===0));
+  // reset progress
+  document.getElementById('prog').style.width = '0%';
+  // remove old error
+  document.querySelectorAll('.drop-err').forEach(e=>e.remove());
+}
+
+// ── File input
+document.getElementById('file-input').addEventListener('change', e => {
+  processFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+// ── Drag & drop
+const dz = document.getElementById('drop-zone');
+const ov = document.getElementById('drag-ov');
+
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  processFile(e.dataTransfer.files[0]);
+});
+
+document.addEventListener('dragover',  e => { e.preventDefault(); ov.classList.add('show'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) ov.classList.remove('show'); });
+document.addEventListener('drop', e => {
+  e.preventDefault(); ov.classList.remove('show');
+  processFile(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
