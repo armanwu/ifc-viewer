@@ -745,6 +745,7 @@ body {
   <div class="tabs">
     <button class="tab on" onclick="switchTab(this,'overview')">Ikhtisar</button>
     <button class="tab" onclick="switchTab(this,'qto')">QTO per Lantai</button>
+    <button class="tab" onclick="switchTab(this,'ruang')">Luasan Ruang</button>
     <button class="tab" onclick="switchTab(this,'bim')">Checklist BIM</button>
     <button class="tab" onclick="switchTab(this,'props')">Properti</button>
   </div>
@@ -772,7 +773,14 @@ body {
         <div class="scroll slist" id="slist"></div>
       </div>
       <div class="panel">
-        <div class="ph"><span class="pt">Elemen per Lantai</span></div>
+        <div class="ph">
+          <span class="pt">Volume &amp; Luas per Lantai</span>
+          <div style="display:flex;gap:4px">
+            <button onclick="toggleStoreyChart('vol')" id="btn-stor-vol" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--b2);background:var(--tq-500);color:var(--navy-900);cursor:pointer;font-family:inherit;font-weight:600">Vol</button>
+            <button onclick="toggleStoreyChart('area')" id="btn-stor-area" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--b2);background:var(--navy-600);color:var(--slate2);cursor:pointer;font-family:inherit">Area</button>
+            <button onclick="toggleStoreyChart('cnt')" id="btn-stor-cnt" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--b2);background:var(--navy-600);color:var(--slate2);cursor:pointer;font-family:inherit">Elemen</button>
+          </div>
+        </div>
         <div class="cbox" style="height:280px"><canvas id="ch-stor"></canvas></div>
       </div>
     </div>
@@ -784,8 +792,23 @@ body {
         <div class="cbox" style="height:268px"><canvas id="ch-mat"></canvas></div>
       </div>
       <div class="panel">
-        <div class="ph"><span class="pt">Daftar Material</span></div>
-        <div class="mgrid" id="mgrid"></div>
+        <div class="ph">
+          <span class="pt">Daftar Material</span>
+          <span class="ps" id="mat-list-badge">—</span>
+        </div>
+        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
+          <input class="sinput" id="mat-search" placeholder="Cari material…" oninput="filterMats(this.value)">
+        </div>
+        <div class="scroll" style="max-height:320px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Material</th>
+              <th style="cursor:default;text-align:right;width:60px">Jml</th>
+              <th style="cursor:default;width:100px">Proporsi</th>
+            </tr></thead>
+            <tbody id="mat-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -828,7 +851,7 @@ body {
           <div class="cbox" style="height:208px"><canvas id="ch-qvol"></canvas></div>
         </div>
         <div class="panel">
-          <div class="ph"><span class="pt">Luas (m²)</span></div>
+          <div class="ph"><span class="pt">Volume per Tipe per Lantai</span></div>
           <div class="cbox" style="height:208px"><canvas id="ch-qarea"></canvas></div>
         </div>
       </div>
@@ -836,6 +859,78 @@ body {
     <div class="panel" style="margin-top:13px">
       <div class="ph"><span class="pt">Heatmap — Elemen per Lantai</span><span class="ps">jumlah unit</span></div>
       <div style="padding:14px;overflow-x:auto"><div id="heatmap"></div></div>
+    </div>
+  </div>
+
+  <!-- ═ LUASAN RUANG ═ -->
+  <div class="pane" id="pane-ruang">
+    <div class="note" id="ruang-note"></div>
+
+    <!-- KPI strip -->
+    <div class="qsum" id="ruang-kpi" style="margin-bottom:14px"></div>
+
+    <!-- Tabel ruang + chart -->
+    <div class="g21" style="margin-bottom:14px">
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Daftar Ruang</span>
+          <span class="ps" id="ruang-badge">—</span>
+        </div>
+        <div style="display:flex;gap:8px;padding:9px 13px;border-bottom:1px solid var(--b);flex-wrap:wrap">
+          <input class="sinput" id="ruang-search" placeholder="Cari nama ruang…" oninput="filterRuang()" style="flex:2;min-width:140px">
+          <select class="qsel" id="ruang-storey-filter" onchange="filterRuang()" style="flex:1;min-width:120px">
+            <option value="">Semua Lantai</option>
+          </select>
+          <select class="qsel" id="ruang-sort" onchange="filterRuang()" style="flex:1;min-width:130px">
+            <option value="NetFloorArea">Urutkan: Luas ↓</option>
+            <option value="name">Urutkan: Nama</option>
+            <option value="storey">Urutkan: Lantai</option>
+          </select>
+        </div>
+        <div class="scroll" style="max-height:460px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Nama Ruang</th>
+              <th style="cursor:default">Lantai</th>
+              <th style="cursor:default;text-align:right">Luas Neto (m²)</th>
+              <th style="cursor:default;text-align:right">Luas Bruto (m²)</th>
+              <th style="cursor:default;text-align:right">Tinggi (m)</th>
+              <th style="cursor:default;text-align:right">Volume (m³)</th>
+              <th style="cursor:default">Fungsi</th>
+            </tr></thead>
+            <tbody id="ruang-tbody"></tbody>
+            <tfoot id="ruang-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div class="panel">
+          <div class="ph"><span class="pt">Luas Neto per Lantai</span></div>
+          <div class="cbox" style="height:220px"><canvas id="ch-ruang-storey"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span class="pt">Distribusi Fungsi Ruang</span></div>
+          <div class="cbox" style="height:220px"><canvas id="ch-ruang-fungsi"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rekap per lantai -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Rekap per Lantai</span></div>
+      <div class="scroll" style="max-height:280px">
+        <table class="qtable">
+          <thead><tr>
+            <th style="cursor:default">Lantai</th>
+            <th style="cursor:default;text-align:right">Jumlah Ruang</th>
+            <th style="cursor:default;text-align:right">Total Luas Neto (m²)</th>
+            <th style="cursor:default;text-align:right">Total Luas Bruto (m²)</th>
+            <th style="cursor:default;text-align:right">Total Volume (m³)</th>
+            <th style="cursor:default">Ruang Terbesar</th>
+          </tr></thead>
+          <tbody id="ruang-rekap-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -871,28 +966,68 @@ body {
 
   <!-- ═ PROPERTIES ═ -->
   <div class="pane" id="pane-props">
+
+    <!-- Tabel Elemen Individual -->
+    <div class="panel" style="margin-bottom:14px">
+      <div class="ph">
+        <span class="pt">Elemen Individual</span>
+        <span class="ps" id="elem-table-badge">—</span>
+      </div>
+      <div style="display:flex;gap:8px;padding:9px 13px;border-bottom:1px solid var(--b);flex-wrap:wrap">
+        <input class="sinput" id="elem-search" placeholder="Cari nama elemen…" oninput="filterElemTable()" style="flex:2;min-width:160px">
+        <select class="qsel" id="elem-type-filter" onchange="filterElemTable()" style="flex:1;min-width:120px">
+          <option value="">Semua Tipe</option>
+        </select>
+        <select class="qsel" id="elem-storey-filter" onchange="filterElemTable()" style="flex:1;min-width:120px">
+          <option value="">Semua Lantai</option>
+        </select>
+      </div>
+      <div class="scroll" style="max-height:340px">
+        <table class="qtable">
+          <thead><tr>
+            <th style="cursor:default">#ID</th>
+            <th style="cursor:default">Tipe</th>
+            <th style="cursor:default">Nama Elemen</th>
+            <th style="cursor:default">Lantai</th>
+            <th style="cursor:default;text-align:right">Vol.Bruto (m³)</th>
+            <th style="cursor:default;text-align:right">Luas (m²)</th>
+            <th style="cursor:default">Material</th>
+          </tr></thead>
+          <tbody id="elem-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Properti Set -->
     <div class="g2">
       <div class="panel">
-        <div class="ph"><span class="pt">Properti Elemen</span><span class="ps" id="prop-badge">—</span></div>
-        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
-          <input class="sinput" id="psearch" placeholder="Cari properti…" oninput="filterProps(this.value)">
+        <div class="ph">
+          <span class="pt">Properti Set (Pset)</span>
+          <span class="ps" id="pset-badge">—</span>
         </div>
-        <div class="scroll" style="max-height:420px">
-          <table class="ptable">
-            <thead><tr><th>Atribut</th><th>Statistik (Σ total | avg per elemen | n)</th><th>Satuan</th></tr></thead>
-            <tbody id="ptbody"></tbody>
+        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
+          <input class="sinput" id="pset-search" placeholder="Cari nama properti atau nilai…" oninput="filterPsets(this.value)">
+        </div>
+        <div class="scroll" style="max-height:360px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Properti</th>
+              <th style="cursor:default">Tipe Elemen</th>
+              <th style="cursor:default">Nilai</th>
+              <th style="cursor:default">Pset</th>
+              <th style="cursor:default;text-align:right">n</th>
+            </tr></thead>
+            <tbody id="pset-tbody"></tbody>
           </table>
         </div>
       </div>
+
       <div class="panel">
-        <div class="ph"><span class="pt">Tipe Entitas IFC</span><span class="ps" id="ent-badge">—</span></div>
-        <div class="ecloud scroll" style="max-height:460px" id="ecloud"></div>
+        <div class="ph"><span class="pt">Header File</span></div>
+        <div class="hinfo" id="hinfo"></div>
       </div>
     </div>
-    <div class="panel" style="margin-top:13px">
-      <div class="ph"><span class="pt">Header File</span></div>
-      <div class="hinfo" id="hinfo"></div>
-    </div>
+
   </div>
 </div>
 
@@ -957,28 +1092,35 @@ function toggleTheme() {
   lightMode = !lightMode;
   const r = document.documentElement.style;
   if (lightMode) {
-    r.setProperty('--navy-950','#e8eef6');
-    r.setProperty('--navy-900','#dce5f0');
-    r.setProperty('--navy-800','#cdd8ea');
-    r.setProperty('--navy-700','#bfcfde');
-    r.setProperty('--navy-600','#b0c2d4');
-    r.setProperty('--navy-500','#8eaac2');
-    r.setProperty('--navy-400','#6a8faf');
-    r.setProperty('--white',   '#0d1b2f');
-    r.setProperty('--white2',  '#112440');
-    r.setProperty('--white3',  '#1a3155');
-    r.setProperty('--slate',   '#244268');
-    r.setProperty('--slate2',  '#2e5280');
-    r.setProperty('--slate3',  '#3d6898');
-    r.setProperty('--slate4',  '#5d7d99');
-    r.setProperty('--b',  'rgba(0,120,140,0.12)');
-    r.setProperty('--b2', 'rgba(0,120,140,0.22)');
-    r.setProperty('--b3', 'rgba(0,120,140,0.35)');
+    // Background: benar-benar putih & abu sangat terang
+    r.setProperty('--navy-950','#f5f7fa');   // body bg
+    r.setProperty('--navy-900','#ffffff');   // topbar, panels
+    r.setProperty('--navy-800','#ffffff');   // card bg
+    r.setProperty('--navy-700','#f0f2f5');   // row hover, input bg
+    r.setProperty('--navy-600','#e4e8ee');   // border bg, secondary
+    r.setProperty('--navy-500','#c8d0db');   // disabled, subtle
+    r.setProperty('--navy-400','#9aaabb');   // placeholder
+    // Teks: gelap & kontras tinggi
+    r.setProperty('--white',   '#0f1923');   // heading utama
+    r.setProperty('--white2',  '#1a2535');   // teks normal
+    r.setProperty('--white3',  '#2d3d52');   // teks sekunder
+    r.setProperty('--slate',   '#374e65');   // teks body
+    r.setProperty('--slate2',  '#4a6278');   // label, subtext
+    r.setProperty('--slate3',  '#6b7f94');   // placeholder, hint
+    r.setProperty('--slate4',  '#8ea0b2');   // disabled text
+    // Border: tipis & kontras cukup
+    r.setProperty('--b',  'rgba(0,0,0,0.08)');
+    r.setProperty('--b2', 'rgba(0,0,0,0.14)');
+    r.setProperty('--b3', 'rgba(0,0,0,0.22)');
+    // Turquoise sedikit lebih gelap agar kontras di bg putih
+    r.setProperty('--tq-500','#009999');
+    r.setProperty('--tq-400','#00aaaa');
+    r.setProperty('--tq-300','#008888');
     document.getElementById('theme-icon').textContent = '☽';
   } else {
     ['--navy-950','--navy-900','--navy-800','--navy-700','--navy-600','--navy-500','--navy-400',
      '--white','--white2','--white3','--slate','--slate2','--slate3','--slate4',
-     '--b','--b2','--b3'].forEach(v => r.removeProperty(v));
+     '--b','--b2','--b3','--tq-500','--tq-400','--tq-300'].forEach(v => r.removeProperty(v));
     document.getElementById('theme-icon').textContent = '☀';
   }
 }
@@ -1163,7 +1305,8 @@ function parseIFC(text, onProgress) {
   }
 
   function getQty(eid) {
-    const r = {GrossVolume:0,NetVolume:0,GrossArea:0,NetArea:0,GrossSideArea:0,NetSideArea:0,Length:0,Height:0,Width:0};
+    const r = {GrossVolume:0,NetVolume:0,GrossArea:0,NetArea:0,GrossSideArea:0,NetSideArea:0,Length:0,Height:0,Width:0,
+              NetFloorArea:0,GrossFloorArea:0,FinishCeilingHeight:0,ClearHeight:0,NetPerimeter:0,GrossPerimeter:0,Area:0,Perimeter:0};
     for (const qsId of (elemToQtySets[eid] || [])) {
       for (const qid of (elemQtySet[qsId] || [])) {
         const q = qtyVals[qid];
@@ -1171,13 +1314,62 @@ function parseIFC(text, onProgress) {
       }
     }
     // Convert length quantities from native unit to metres
-    r.Length_m  = round4(r.Length  * unitFactor);
-    r.Height_m  = round4(r.Height  * unitFactor);
-    r.Width_m   = round4(r.Width   * unitFactor);
+    r.Length_m             = round4(r.Length             * unitFactor);
+    r.Height_m             = round4(r.Height             * unitFactor);
+    r.Width_m              = round4(r.Width              * unitFactor);
+    r.FinishCeilingHeight  = round4(r.FinishCeilingHeight* unitFactor);
+    r.ClearHeight          = round4(r.ClearHeight        * unitFactor);
     return r;
   }
 
-  onProgress(70, 'Membaca material…');
+  onProgress(65, 'Membaca properti set…');
+
+  // ── IFCPROPERTYSINGLEVALUE
+  const propVals = {};
+  for (const id of (byType['IFCPROPERTYSINGLEVALUE'] || [])) {
+    const raw   = entities[id].raw;
+    const parts = raw.split(',');
+    const name  = clean(parts[0]);
+    // value: look for IFCxxx(val) pattern
+    const vm = /IFC\w+\(([^)]*)\)/.exec(raw);
+    let val = '$';
+    if (vm) {
+      val = vm[1].trim().replace(/^'+|'+$/g, '');
+      if (val === '.T.' || val === '.TRUE.')  val = 'True';
+      if (val === '.F.' || val === '.FALSE.') val = 'False';
+    }
+    if (name && name !== '$') propVals[id] = { name, value: val };
+  }
+
+  // ── IFCPROPERTYSET -> list of prop ids
+  const psetDefs = {};
+  for (const id of (byType['IFCPROPERTYSET'] || [])) {
+    const raw   = entities[id].raw;
+    const parts = raw.split(',');
+    const pname = clean(parts[2]) || clean(parts[0]);
+    const groups = [...raw.matchAll(/\(([#\d,\s]+)\)/g)];
+    const last   = groups.length ? groups[groups.length - 1][1] : '';
+    const ids    = last.split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    psetDefs[id] = { name: pname, propIds: ids };
+  }
+
+  // ── element -> pset list (IFCPROPERTYSET only, not IFCELEMENTQUANTITY)
+  const elemPsets = {};
+  for (const relId of (byType['IFCRELDEFINESBYPROPERTIES'] || [])) {
+    const raw = entities[relId].raw;
+    const m   = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const eids  = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    const psId  = parseInt(m[2]);
+    if (psId in psetDefs) {
+      for (const eid of eids) {
+        if (!elemPsets[eid]) elemPsets[eid] = [];
+        elemPsets[eid].push(psId);
+      }
+    }
+  }
+
+    onProgress(70, 'Membaca material…');
 
   // ── Materials
   const matNames = {};
@@ -1226,6 +1418,88 @@ function parseIFC(text, onProgress) {
     for (const eid of elemIds) if (label) elemMat[eid] = label;
   }
 
+
+  onProgress(78, 'Membaca ruang (IfcSpace)…');
+
+  // ── IFCSPACE parsing
+  // Format: IFCSPACE(guid, owner, name, desc, type, placement, repr, longname, compositiontype, interiorflag, elevfloor, elevfloor_ref)
+  const spaceRe = /^#(\d+)=IFCSPACE\(([^;]+)\);/gim;
+  const spaces = [];
+  for (const sm of text.matchAll(spaceRe)) {
+    const eid  = parseInt(sm[1]);
+    const raw2 = sm[2];
+    const parts2 = splitP(raw2);
+    const name    = clean(parts2[2]) || clean(parts2[7]) || `Ruang #${eid}`;
+    const longName= clean(parts2[7]) || '';
+    // Get quantities via elem->qtyset chain
+    const q2 = getQty(eid);
+    // Interior/Exterior flag
+    const intFlag = clean(parts2[9]);
+    spaces.push({
+      id: eid,
+      name: name || longName || ('Ruang #' + eid),
+      longName,
+      NetFloorArea:   round4(q2.NetFloorArea  || q2.NetArea    || q2.Area || q2.GrossFloorArea || q2.GrossArea || 0),
+      GrossFloorArea: round4(q2.GrossFloorArea || q2.GrossArea  || q2.Area || 0),
+      NetVolume:      round4(q2.NetVolume  || q2.GrossVolume || 0),
+      Height_m:       q2.FinishCeilingHeight || q2.ClearHeight || q2.Height_m || 0,
+      interior: intFlag !== '.EXTERNAL.',
+    });
+  }
+
+  // Also parse via byType (in case regex missed some)
+  for (const eid of (byType['IFCSPACE'] || [])) {
+    if (spaces.find(s => s.id === eid)) continue;
+    const raw2  = entities[eid].raw;
+    const parts2= splitP(raw2);
+    const name  = clean(parts2[2]) || clean(parts2[7]) || `Ruang #${eid}`;
+    const q2    = getQty(eid);
+    spaces.push({
+      id: eid, name, longName: clean(parts2[7]) || '',
+      NetFloorArea:   round4(q2.NetFloorArea  || q2.NetArea    || q2.Area || q2.GrossFloorArea || q2.GrossArea || 0),
+      GrossFloorArea: round4(q2.GrossFloorArea || q2.GrossArea  || q2.Area || 0),
+      NetVolume:      round4(q2.NetVolume  || q2.GrossVolume || 0),
+      Height_m:       q2.FinishCeilingHeight || q2.ClearHeight || q2.Height_m || 0,
+      interior: true,
+    });
+  }
+
+  // Assign spaces to storeys via IFCRELCONTAINEDINSPATIALSTRUCTURE
+  // (same rel used for physical elements — spaces are also contained)
+  const spaceStorey = {}; // spaceId -> storeyId
+  for (const relId of (byType['IFCRELCONTAINEDINSPATIALSTRUCTURE'] || [])) {
+    const raw2 = entities[relId].raw;
+    const m2   = /\(([#\d,\s]+)\),#(\d+)/.exec(raw2);
+    if (!m2) continue;
+    const eids2 = m2[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
+    const sid2  = parseInt(m2[2]);
+    for (const eid2 of eids2) {
+      if (spaces.find(s => s.id === eid2)) spaceStorey[eid2] = sid2;
+    }
+  }
+  // Also check IFCRELAGGREGATES for spaces under storeys
+  for (const relId of (byType['IFCRELAGGREGATES'] || [])) {
+    const raw2  = entities[relId].raw;
+    const parts2= splitP(raw2);
+    // format: (guid,owner,$,$,#relating,( #related... ))
+    const relatingRef = parseInt((parts2[4]||'').replace('#',''));
+    const groups2 = [...raw2.matchAll(/\(([#\d,\s]+)\)/g)];
+    if (!groups2.length) continue;
+    const relatedIds = groups2[groups2.length-1][1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    if (storeys[relatingRef]) {
+      for (const rid of relatedIds) {
+        if (spaces.find(s => s.id === rid)) spaceStorey[rid] = relatingRef;
+      }
+    }
+  }
+
+  // Attach storey name to each space
+  spaces.forEach(s => {
+    const sid = spaceStorey[s.id];
+    s.storeyId   = sid || null;
+    s.storeyName = sid ? (storeys[sid]?.name || '—') : '—';
+  });
+
   onProgress(82, 'Agregasi elemen per lantai…');
 
   // ── Physical element types
@@ -1253,6 +1527,17 @@ function parseIFC(text, onProgress) {
       const rawParts = splitP(entities[eid].raw);
       const elemName = clean(rawParts[2]) || '';
 
+      // Collect pset properties for this element
+      const elemProps = {};
+      for (const psId of (elemPsets[eid] || [])) {
+        const ps = psetDefs[psId];
+        if (!ps) continue;
+        for (const pid of ps.propIds) {
+          const pv = propVals[pid];
+          if (pv) elemProps[pv.name] = { value: pv.value, pset: ps.name };
+        }
+      }
+
       s.elements.push({
         id: eid, type: t, name: elemName, material: mat,
         GrossVolume:   round4(q.GrossVolume),
@@ -1263,6 +1548,7 @@ function parseIFC(text, onProgress) {
         Length_m:      q.Length_m,
         Height_m:      q.Height_m,
         Width_m:       q.Width_m,
+        props:         elemProps,
       });
 
       s.typeCounts[t] = (s.typeCounts[t] || 0) + 1;
@@ -1292,6 +1578,7 @@ function parseIFC(text, onProgress) {
     storeys: sortedStoreys,
     allElemTypes,
     allMaterials,
+    spaces,
     byType,
     totalEntities: Object.keys(entities).length,
     rawLines: lines.length,
@@ -1336,7 +1623,7 @@ function renderOverview() {
     {cls:'c-gold',icon:'📦', lbl:'Volume Bruto',  val:fmt(totalVol,2),  sub:'m³ aktual IFC'},
     {cls:'c-tq',  icon:'⬛', lbl:'Luas Area',     val:fmt(totalArea,2), sub:'m² aktual IFC'},
     {cls:'c-lil', icon:'🎨', lbl:'Material',      val:fmti(totalMats),  sub:'jenis tercatat'},
-    {cls:'c-sl',  icon:'📄', lbl:'Entitas',       val:fmti(d.totalEntities),sub:d.schema},
+    {cls:'c-sl',  icon:'📏', lbl:'Panjang Linear', val:fmt(round4(d.storeys.reduce((s,st)=>s+st.totals.Length_m,0)),1), sub:'m total (dari IFC)'},
   ].map(k=>`<div class="kpi ${k.cls}">
     <div class="kpi-icon">${k.icon}</div>
     <div class="kpi-label">${k.lbl}</div>
@@ -1377,31 +1664,225 @@ function renderOverview() {
       <div class="scnt">${fmti(s.totals.cnt)}<small>elemen</small></div>
     </div>`).join('');
 
-  mkChart('ch-stor',{type:'bar',data:{
-    labels:d.storeys.map(s=>s.name.length>14?s.name.slice(0,13)+'…':s.name),
-    datasets:[{label:'Elemen',data:d.storeys.map(s=>s.totals.cnt),
-      backgroundColor:d.storeys.map((_,i)=>`hsla(${185+i*12},70%,${40+i*4}%,0.85)`),
-      borderRadius:4,borderWidth:0}]
-  },options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
-    plugins:{legend:{display:false},tooltip:tt()},
-    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10}}},
-            y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}});
+  window._STOR_MODE = 'vol';
+  buildStoreyChart('vol');
 
-  // Materials
+  // Materials — show ALL, no slice limit
   const mats = Object.entries(d.allMaterials).sort((a,b)=>b[1]-a[1]);
+  const matTotal = mats.reduce((s,[,v])=>s+v,0);
   document.getElementById('mat-badge').textContent = mats.length+' jenis';
-  document.getElementById('mgrid').innerHTML = mats.slice(0,12).map(([n,c])=>`
-    <div class="mcard">
-      <div class="mname" title="${esc(n)}">${esc(n)}</div>
-      <div class="mval">${c}</div>
-      <div class="mlbl">elemen terkait</div>
-    </div>`).join('');
+  document.getElementById('mat-list-badge').textContent = mats.length+' jenis';
+  window._ALL_MATS = mats; // store for filter
+  window._MAT_TOTAL = matTotal;
+  renderMatTable(mats);
 
+  // Chart: top 12 + "Lainnya" bucket
+  const TOP = 12;
+  const chartMats = mats.slice(0, TOP);
+  const rest = mats.slice(TOP);
+  const restSum = rest.reduce((s,[,v])=>s+v,0);
+  const chartLabels = [...chartMats.map(([n])=>n.length>20?n.slice(0,19)+'…':n), ...(restSum>0?['Lainnya ('+rest.length+')']:[])];
+  const chartData   = [...chartMats.map(([,v])=>v), ...(restSum>0?[restSum]:[])];
+  const chartCols   = [...MCOLS.slice(0,TOP), '#3a566e'];
   mkChart('ch-mat',{type:'doughnut',data:{
-    labels:mats.slice(0,10).map(([n])=>n.length>22?n.slice(0,21)+'…':n),
-    datasets:[{data:mats.slice(0,10).map(([,v])=>v),backgroundColor:MCOLS,borderWidth:0,hoverOffset:5}]
-  },options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
-    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:11,family:'Inter'},boxWidth:9,padding:8}},tooltip:tt()}}});
+    labels:chartLabels,
+    datasets:[{data:chartData,backgroundColor:chartCols,borderWidth:0,hoverOffset:5}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'52%',
+    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:6}},tooltip:tt()}}});
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — LUASAN RUANG
+// ═══════════════════════════════════════════════════════════
+let _RUANG_ROWS = [];
+
+function renderRuang() {
+  const d   = DATA;
+  const spaces = d.spaces || [];
+
+  // Note
+  const noteEl = document.getElementById('ruang-note');
+  if (spaces.length === 0) {
+    noteEl.className = 'note warn';
+    noteEl.innerHTML = '<strong>⚠ Tidak ada IFCSPACE ditemukan dalam file ini.</strong> '
+      + 'Ruang/Room belum dimodelkan atau tidak di-export. '
+      + 'Di Revit: gunakan tool <em>Architecture → Room</em> untuk membuat ruang, '
+      + 'lalu centang <em>Export Rooms</em> di pengaturan IFC Export. '
+      + 'Di ArchiCAD: aktifkan <em>Export Zones as IfcSpace</em>.';
+    document.getElementById('ruang-kpi').innerHTML = '';
+    document.getElementById('ruang-badge').textContent = '0 ruang';
+    document.getElementById('ruang-tbody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--slate3)">Tidak ada data ruang</td></tr>';
+    document.getElementById('ruang-rekap-tbody').innerHTML = '';
+    return;
+  }
+
+  noteEl.className = 'note';
+  const hasAreaData = spaces.some(s => s.NetFloorArea > 0);
+  const hasVolData  = spaces.some(s => s.NetVolume > 0);
+  noteEl.innerHTML = '<strong>Data dari IFCSPACE.</strong> '
+    + 'Luas & volume diambil dari <code style="font-size:11px;background:rgba(0,181,181,.15);padding:1px 5px;border-radius:3px">Qto_SpaceBaseQuantities</code> (NetFloorArea, GrossFloorArea, NetVolume). '
+    + (!hasAreaData && hasVolData ? '<br><span style="color:var(--gold)">⚠ Luas = 0: file tidak menyertakan NetFloorArea/GrossFloorArea di quantity set ruang. Cek pengaturan IFC Export.</span>' : '')
+    + (!hasAreaData && !hasVolData ? '<br><span style="color:var(--gold)">⚠ Tidak ada data kuantitas ruang. Aktifkan BaseQuantities saat export IFC.</span>' : '');
+
+  _RUANG_ROWS = spaces.map(s => ({...s}));
+
+  // KPI
+  const totalNetArea   = round4(spaces.reduce((a,s) => a + s.NetFloorArea,   0));
+  const totalGrossArea = round4(spaces.reduce((a,s) => a + s.GrossFloorArea, 0));
+  const totalVol       = round4(spaces.reduce((a,s) => a + s.NetVolume,      0));
+  const avgArea        = spaces.length ? round4(totalNetArea / spaces.length) : 0;
+  const maxRoom        = spaces.reduce((a,b) => b.NetFloorArea > a.NetFloorArea ? b : a, spaces[0]);
+  const minRoom        = spaces.filter(s=>s.NetFloorArea>0).reduce((a,b) => b.NetFloorArea < a.NetFloorArea ? b : a, spaces.find(s=>s.NetFloorArea>0)||spaces[0]);
+
+  document.getElementById('ruang-kpi').innerHTML = [
+    {cls:'c-tq',   lbl:'Total Ruang',    val: fmti(spaces.length),    unit:'ruang'},
+    {cls:'c-gold', lbl:'Luas Neto Total',val: fmt(totalNetArea,2),    unit:'m²'},
+    {cls:'c-sage', lbl:'Luas Bruto Total',val:fmt(totalGrossArea,2),  unit:'m²'},
+    {cls:'c-lil',  lbl:'Total Volume',   val: fmt(totalVol,2),        unit:'m³'},
+    {cls:'c-teal', lbl:'Rata-rata Luas', val: fmt(avgArea,2),         unit:'m²/ruang'},
+    {cls:'c-rose', lbl:'Ruang Terbesar', val: maxRoom.NetFloorArea > 0 ? fmt(maxRoom.NetFloorArea,2) : '—', unit: maxRoom.name.slice(0,18)},
+  ].map(k => '<div class="qsc ' + k.cls + '">'
+    + '<div class="qsc-lbl">' + k.lbl + '</div>'
+    + '<div class="qsc-val">' + k.val + '</div>'
+    + '<div class="qsc-unit">' + k.unit + '</div>'
+    + '</div>').join('');
+
+  // Storey filter dropdown
+  const storeyFilter = document.getElementById('ruang-storey-filter');
+  const storeyNames  = [...new Set(spaces.map(s => s.storeyName))].filter(n => n !== '—');
+  storeyFilter.innerHTML = '<option value="">Semua Lantai</option>'
+    + storeyNames.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+
+  filterRuang();
+  renderRuangCharts(spaces);
+  renderRuangRekap(spaces);
+}
+
+function filterRuang() {
+  const q      = (document.getElementById('ruang-search')?.value || '').toLowerCase();
+  const sFilter= document.getElementById('ruang-storey-filter')?.value || '';
+  const sortBy = document.getElementById('ruang-sort')?.value || 'NetFloorArea';
+
+  let rows = [..._RUANG_ROWS];
+  if (q)       rows = rows.filter(r => r.name.toLowerCase().includes(q));
+  if (sFilter) rows = rows.filter(r => r.storeyName === sFilter);
+
+  rows.sort((a, b) => {
+    if (sortBy === 'name')   return a.name.localeCompare(b.name);
+    if (sortBy === 'storey') return a.storeyName.localeCompare(b.storeyName);
+    return b.NetFloorArea - a.NetFloorArea;
+  });
+
+  document.getElementById('ruang-badge').textContent = rows.length + ' ruang';
+
+  const totNet   = round4(rows.reduce((a,r) => a + r.NetFloorArea,   0));
+  const totGross = round4(rows.reduce((a,r) => a + r.GrossFloorArea, 0));
+  const totVol   = round4(rows.reduce((a,r) => a + r.NetVolume,      0));
+
+  document.getElementById('ruang-tbody').innerHTML = rows.map(r => {
+    const hasArea = r.NetFloorArea > 0;
+    return '<tr>'
+      + '<td style="color:var(--white2);font-weight:500;font-size:12px">' + esc(r.name) + '</td>'
+      + '<td style="font-size:11px;color:var(--slate2)">' + esc(r.storeyName) + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:' + (hasArea?'var(--tq-300)':'var(--slate3)') + '">' + (hasArea?fmt(r.NetFloorArea,2):'—') + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:' + (r.GrossFloorArea>0?'var(--gold)':'var(--slate3)') + '">' + (r.GrossFloorArea>0?fmt(r.GrossFloorArea,2):'—') + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--slate2)">' + (r.Height_m>0?fmt(r.Height_m,2):'—') + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--slate2)">' + (r.NetVolume>0?fmt(r.NetVolume,2):'—') + '</td>'
+      + '<td style="font-size:11px;color:var(--slate3)">' + (r.interior ? 'Interior' : 'Eksterior') + '</td>'
+      + '</tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada ruang</td></tr>';
+
+  document.getElementById('ruang-tfoot').innerHTML = '<tr>'
+    + '<td colspan="2" style="color:var(--slate3)">Total (' + rows.length + ' ruang)</td>'
+    + '<td style="text-align:right;font-family:JetBrains Mono,monospace">' + fmt(totNet,2) + ' <span class="tunit">m²</span></td>'
+    + '<td style="text-align:right;font-family:JetBrains Mono,monospace">' + fmt(totGross,2) + ' <span class="tunit">m²</span></td>'
+    + '<td colspan="2"></td><td></td>'
+    + '</tr>';
+}
+
+function renderRuangCharts(spaces) {
+  // Luas neto per storey
+  const storeyMap = {};
+  spaces.forEach(s => {
+    if (!storeyMap[s.storeyName]) storeyMap[s.storeyName] = 0;
+    storeyMap[s.storeyName] += s.NetFloorArea;
+  });
+  // Sort by storey order from DATA.storeys
+  const storeyOrder = DATA.storeys.map(s => s.name);
+  const storeyEntries = Object.entries(storeyMap).sort((a,b) => {
+    const ia = storeyOrder.indexOf(a[0]), ib = storeyOrder.indexOf(b[0]);
+    return (ia===-1?999:ia) - (ib===-1?999:ib);
+  });
+
+  mkChart('ch-ruang-storey', {type:'bar', data:{
+    labels: storeyEntries.map(([n]) => n.length>14 ? n.slice(0,13)+'…' : n),
+    datasets:[{
+      label:'Luas Neto (m²)',
+      data: storeyEntries.map(([,v]) => round4(v)),
+      backgroundColor: storeyEntries.map((_,i) => 'hsla(' + (180+i*14) + ',68%,' + (42+i*3) + '%,0.82)'),
+      borderRadius: 4, borderWidth: 0,
+    }]
+  }, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}, tooltip:tt()},
+    scales:{
+      x:{grid:{display:false}, ticks:{color:tc(), font:{size:9}, maxRotation:30}},
+      y:{grid:{color:gc()}, ticks:{color:tc(), font:{size:9}}, title:{display:true, text:'m²', color:tc(), font:{size:9}}}
+    }}});
+
+  // Distribusi fungsi (interior vs eksterior atau per nama kategori)
+  // Group by first word of name as rough category
+  const catMap = {};
+  spaces.forEach(s => {
+    const cat = s.interior ? 'Interior' : 'Eksterior';
+    catMap[cat] = (catMap[cat]||0) + s.NetFloorArea;
+  });
+  const catEntries = Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+
+  mkChart('ch-ruang-fungsi', {type:'doughnut', data:{
+    labels: catEntries.map(([n]) => n),
+    datasets:[{
+      data: catEntries.map(([,v]) => round4(v)),
+      backgroundColor: ['#00b5b5','#3d6898','#e8b84b','#a08be8','#e8607a','#4ec9a0'],
+      borderWidth: 0, hoverOffset: 5,
+    }]
+  }, options:{responsive:true, maintainAspectRatio:false, cutout:'55%',
+    plugins:{
+      legend:{position:'right', labels:{color:'#5d7d99', font:{size:11,family:'Inter'}, boxWidth:9, padding:8}},
+      tooltip:tt()
+    }}});
+}
+
+function renderRuangRekap(spaces) {
+  const storeyMap = {};
+  spaces.forEach(s => {
+    if (!storeyMap[s.storeyName]) storeyMap[s.storeyName] = {cnt:0, netArea:0, grossArea:0, vol:0, rooms:[]};
+    const st = storeyMap[s.storeyName];
+    st.cnt++;
+    st.netArea   += s.NetFloorArea;
+    st.grossArea += s.GrossFloorArea;
+    st.vol       += s.NetVolume;
+    st.rooms.push(s);
+  });
+
+  const storeyOrder = DATA.storeys.map(s => s.name);
+  const entries = Object.entries(storeyMap).sort((a,b) => {
+    const ia = storeyOrder.indexOf(a[0]), ib = storeyOrder.indexOf(b[0]);
+    return (ia===-1?999:ia) - (ib===-1?999:ib);
+  });
+
+  document.getElementById('ruang-rekap-tbody').innerHTML = entries.map(([name, st]) => {
+    const biggest = st.rooms.reduce((a,b)=>b.NetFloorArea>a.NetFloorArea?b:a, st.rooms[0]);
+    return '<tr>'
+      + '<td style="color:var(--white2);font-weight:500;font-size:12px">' + esc(name) + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--tq-300)">' + st.cnt + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--tq-300)">' + fmt(round4(st.netArea),2) + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--gold)">'   + fmt(round4(st.grossArea),2) + '</td>'
+      + '<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--slate2)">' + fmt(round4(st.vol),2) + '</td>'
+      + '<td style="font-size:11px;color:var(--slate2)">' + esc(biggest.name) + ' (' + fmt(biggest.NetFloorArea,1) + ' m²)</td>'
+      + '</tr>';
+  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--slate3)">—</td></tr>';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1587,14 +2068,18 @@ function renderQCharts() {
     scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
             y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m³',color:tc(),font:{size:9}}}}}});
 
-  // Area grouped bar
-  mkChart('ch-qarea',{type:'bar',data:{labels,datasets:[
-    {label:'GrossArea (m²)',data:d.storeys.map(s=>s.totals.GrossArea),backgroundColor:'rgba(0,181,181,0.65)',borderRadius:3,borderWidth:0},
-    {label:'SideArea (m²)', data:d.storeys.map(s=>s.totals.GrossSideArea),backgroundColor:'rgba(0,181,181,0.28)',borderRadius:3,borderWidth:0},
-  ]},options:{responsive:true,maintainAspectRatio:false,
+  // Volume per type per storey — top 6 types with actual volume
+  const allTypes = Object.entries(d.allElemTypes).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
+  const volTypes = allTypes.filter(t => d.storeys.some(s => s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0) > 0)).slice(0,6);
+  mkChart('ch-qarea',{type:'bar',data:{labels,datasets: volTypes.length ? volTypes.map(t=>({
+    label:(ECFG[t]||{lbl:t.replace('IFC','')}).lbl,
+    data:d.storeys.map(s=>round4(s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0))),
+    backgroundColor:(ECFG[t]||{col:'#3a566e'}).col+'99',borderRadius:3,borderWidth:0,
+  })) : [{label:'Tidak ada data volume',data:d.storeys.map(()=>0),backgroundColor:'#3a566e'}]},
+  options:{responsive:true,maintainAspectRatio:false,
     plugins:{legend:{labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
-    scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
-            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m²',color:tc(),font:{size:9}}}}}});
+    scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
+            y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m³',color:tc(),font:{size:9}}}}}});
 }
 
 function renderHeatmap() {
@@ -1662,12 +2147,12 @@ function renderBIM() {
       {n:'Plate ada',  s:has('IFCPLATE')?'p':'i',  d:'IfcPlate',  v:cnt('IFCPLATE')},
       {n:'Pondasi ada',s:has('IFCFOOTING')?'p':'i',d:'IfcFooting',v:cnt('IFCFOOTING')},
     ]},
-    {title:'Kuantitas Real',items:[
-      {n:'IFCELEMENTQUANTITY ada', s:hasQty?'p':'f',           d:'Quantity sets',   v:hasQty?'✓ Ada':'✗ Tidak ada'},
-      {n:'Volume tersedia',        s:d.storeys.some(s=>s.totals.GrossVolume>0)?'p':'w',d:'GrossVolume>0',v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossVolume,0),2)+' m³'},
-      {n:'Luas tersedia',          s:d.storeys.some(s=>s.totals.GrossArea>0)?'p':'w',  d:'GrossArea>0',  v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossArea,0),2)+' m²'},
-      {n:'Unit length terdeteksi', s:'p',                      d:'Satuan panjang',  v:d.header.lengthUnit+' → dikonversi ke m'},
-      {n:'Elevasi dikonversi',     s:'p',                      d:'Native → meter',  v:'×'+d.unitFactor},
+    {title:'Quantity Take-Off',items:[
+      {n:'IFCELEMENTQUANTITY ada',  s:hasQty?'p':'f',  d:'File menyertakan quantity set',   v:hasQty?'✓ Ada':'✗ Tidak ada'},
+      {n:'Volume Bruto tersedia',   s:d.storeys.some(s=>s.totals.GrossVolume>0)?'p':'w', d:'GrossVolume pada elemen fisik', v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossVolume,0),2)+' m³'},
+      {n:'Luas Area tersedia',      s:d.storeys.some(s=>s.totals.GrossArea>0)?'p':'w',   d:'GrossArea pada elemen fisik',   v:fmt(d.storeys.reduce((a,s)=>a+s.totals.GrossArea,0),2)+' m²'},
+      {n:'Panjang Linear tersedia', s:d.storeys.some(s=>s.totals.Length_m>0)?'p':'i',   d:'Length pada elemen linier',     v:fmt(d.storeys.reduce((a,s)=>a+s.totals.Length_m,0),1)+' m'},
+      {n:'Elemen tanpa kuantitas',  s:(()=>{const noQ=d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.GrossArea===0).length,0);return noQ===0?'p':noQ<10?'w':'i';})(), d:'Elemen yang GrossVolume & GrossArea = 0', v:(()=>{const noQ=d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.GrossArea===0).length,0);const tot=d.storeys.reduce((a,s)=>a+s.totals.cnt,0);return noQ+' / '+tot+' elemen';})()},
     ]},
     {title:'Material & Properti',items:[
       {n:'Material terdefinisi',  s:Object.keys(d.allMaterials).length>0?'p':'w',d:'IFCMATERIAL',    v:Object.keys(d.allMaterials).length+' jenis'},
@@ -1730,17 +2215,40 @@ function renderBIM() {
     </div>`;
   }).join('');
 
-  // Auto-generate recommendations from failures/warnings
-  const fails = cats.flatMap(c=>c.items.filter(i=>i.s==='f').map(i=>({level:'f',title:'✗ Kritis: '+i.n,desc:'Tidak ditemukan atau tidak terdefinisi. Perlu diperbaiki untuk kelengkapan BIM.',col:'var(--rose)'})));
-  const warns = cats.flatMap(c=>c.items.filter(i=>i.s==='w').map(i=>({level:'w',title:'⚡ Perlu perhatian: '+i.n,desc:'Ada tapi kurang lengkap atau perlu ditinjau ulang.',col:'var(--gold)'})));
-  const recs  = [...fails,...warns].slice(0,6);
+  // Recommendations — specific per finding with actionable guidance
+  const REC_GUIDE = {
+    'IfcProject terdefinisi':       'Tambahkan IfcProject dengan Name yang diisi — biasanya sudah otomatis dari Revit/ArchiCAD saat export.',
+    'IfcBuilding terdefinisi':      'Isi nama gedung di property IfcBuilding sebelum export ke IFC.',
+    'Lantai/Storey ada':            'Pastikan model memiliki Level/Storey dan elemen ter-assign ke level tersebut.',
+    'Elevasi terisi':               'Periksa nilai elevasi level di authoring tool — semua lantai menunjukkan 0.',
+    'Elemen dikontain storey':      'Assign semua elemen ke storey/level di Revit/ArchiCAD sebelum export.',
+    'Dinding ada':                  'Tidak ada IfcWall ditemukan. Periksa pengaturan category mapping di IFC export.',
+    'Pelat ada':                    'Tidak ada IfcSlab. Pastikan floor/ceiling/roof slab ter-export sebagai IfcSlab.',
+    'Kolom ada':                    'Kolom tidak ditemukan. Periksa mapping structural column ke IfcColumn.',
+    'Balok ada':                    'Balok tidak ditemukan. Periksa mapping structural framing ke IfcBeam.',
+    'IFCELEMENTQUANTITY ada':       'File tidak menyertakan quantity set. Aktifkan "Export Quantities" di pengaturan IFC export.',
+    'Volume Bruto tersedia':        'GrossVolume = 0 untuk semua elemen. Aktifkan BaseQuantities di IFC export settings.',
+    'Luas Area tersedia':           'GrossArea = 0. Pastikan quantity export diaktifkan di IFC export settings.',
+    'Material terdefinisi':         'Tidak ada material. Assign material ke semua elemen sebelum export.',
+    'Pset tersedia':                'Tambahkan property set (Pset_WallCommon, dll) melalui IFC export settings.',
+    'Semua storey berisi elemen':   'Ada storey kosong — periksa apakah elemen ter-assign ke level yang benar.',
+    'Element Proxy':                'Ada '+cnt('IFCBUILDINGELEMENTPROXY')+' IfcBuildingElementProxy — konversi ke tipe IFC yang sesuai (IfcFurniture, IfcEquipment, dll) di authoring tool.',
+    'Elemen tanpa kuantitas':       'Banyak elemen tanpa quantity. Beberapa tipe (furnitur, MEP) memang tidak punya volume — tapi dinding/slab/kolom harus punya.',
+  };
+  const fails = cats.flatMap(cat=>cat.items.filter(i=>i.s==='f').map(i=>({
+    title:'✗ '+i.n, desc: REC_GUIDE[i.n] || 'Tidak ditemukan. Perlu ditambahkan untuk memenuhi standar BIM.', col:'var(--rose)'
+  })));
+  const warns = cats.flatMap(cat=>cat.items.filter(i=>i.s==='w').map(i=>({
+    title:'⚡ '+i.n, desc: REC_GUIDE[i.n] || 'Ada tapi perlu ditingkatkan kelengkapannya.', col:'var(--gold)'
+  })));
+  const recs = [...fails, ...warns].slice(0, 6);
   if (!recs.length) {
     document.getElementById('bim-recs').innerHTML=`<div style="grid-column:1/-1;text-align:center;color:var(--tq-300);padding:20px;font-size:13px">✓ Model sudah memenuhi semua kriteria utama</div>`;
   } else {
     document.getElementById('bim-recs').innerHTML=recs.map(r=>`
       <div style="padding:12px;border-radius:9px;border:1px solid color-mix(in srgb,${r.col} 25%,transparent);background:color-mix(in srgb,${r.col} 6%,transparent)">
-        <div style="font-size:12px;font-weight:600;color:${r.col};margin-bottom:4px">${r.title}</div>
-        <div style="font-size:11px;color:var(--slate);line-height:1.55">${r.desc}</div>
+        <div style="font-size:12px;font-weight:600;color:${r.col};margin-bottom:5px">${r.title}</div>
+        <div style="font-size:11px;color:var(--slate);line-height:1.6">${r.desc}</div>
       </div>`).join('');
   }
 }
@@ -1748,43 +2256,53 @@ function renderBIM() {
 // ═══════════════════════════════════════════════════════════
 // RENDER — PROPERTIES
 // ═══════════════════════════════════════════════════════════
+// ── Element table state
+let _ELEM_ROWS = [];
+
 function renderProps() {
   const d = DATA;
-  // Collect real quantity stats across all elements
-  const QN = {GrossVolume:'m³',NetVolume:'m³',GrossArea:'m²',NetArea:'m²',GrossSideArea:'m²',Length_m:'m',Height_m:'m',Width_m:'m'};
-  const stats = {};
-  for (const k of Object.keys(QN)) stats[k] = {sum:0, count:0, min:Infinity, max:-Infinity};
+
+  // ── Build flat element table rows (all storeys)
+  _ELEM_ROWS = [];
   for (const s of d.storeys) {
     for (const e of s.elements) {
-      for (const k of Object.keys(QN)) {
-        const v = e[k];
-        if (v > 0) {
-          stats[k].sum   += v;
-          stats[k].count += 1;
-          stats[k].min    = Math.min(stats[k].min, v);
-          stats[k].max    = Math.max(stats[k].max, v);
-        }
+      _ELEM_ROWS.push({ ...e, storeyName: s.name });
+    }
+  }
+
+  // ── Populate type and storey filter dropdowns
+  const typeFilter   = document.getElementById('elem-type-filter');
+  const storeyFilter = document.getElementById('elem-storey-filter');
+  const types   = [...new Set(_ELEM_ROWS.map(e => e.type))].sort();
+  const storeys = [...new Set(_ELEM_ROWS.map(e => e.storeyName))];
+  typeFilter.innerHTML   = '<option value="">Semua Tipe</option>'
+    + types.map(t => `<option value="${t}">${(ECFG[t]||{lbl:t.replace('IFC','')}).lbl} (${t.replace('IFC','')})</option>`).join('');
+  storeyFilter.innerHTML = '<option value="">Semua Lantai</option>'
+    + storeys.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+
+  filterElemTable();
+
+  // ── Collect all unique pset properties across all elements
+  // Build pset rows: one row per (propName × elemType), showing value per type
+  window._ALL_PSETS = [];
+  // psetMap key: propName||psetName||elemType
+  const psetMap = {};
+  for (const s of d.storeys) {
+    for (const e of s.elements) {
+      const typeLabel = (ECFG[e.type]||{lbl:e.type.replace('IFC','')}).lbl;
+      for (const [pname, pdata] of Object.entries(e.props || {})) {
+        const key = pname + '||' + pdata.pset + '||' + typeLabel;
+        if (!psetMap[key]) psetMap[key] = { name: pname, pset: pdata.pset, type: typeLabel, values: new Set(), count: 0 };
+        psetMap[key].values.add(pdata.value);
+        psetMap[key].count++;
       }
     }
   }
-  ALL_PROPS = Object.keys(QN).map(k => {
-    const st = stats[k];
-    const hasData = st.count > 0;
-    return {
-      name:  k,
-      value: hasData ? `Σ ${fmt(st.sum,3)}  |  avg ${fmt(st.sum/st.count,3)}  |  n=${st.count}` : '—',
-      unit:  QN[k],
-    };
-  });
-  document.getElementById('prop-badge').textContent = ALL_PROPS.length+' atribut kuantitas';
-  renderPropTable(ALL_PROPS);
+  window._ALL_PSETS = Object.values(psetMap).sort((a,b) => a.name.localeCompare(b.name) || a.type.localeCompare(b.type));
+  document.getElementById('pset-badge').textContent = window._ALL_PSETS.length + ' baris';
+  renderPsetTable(window._ALL_PSETS);
 
-  document.getElementById('ent-badge').textContent = Object.keys(d.allElemTypes).length+' tipe fisik';
-  document.getElementById('ecloud').innerHTML = Object.entries(d.allElemTypes)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([t,c])=>`<span class="etag ${c>10?'hi':''}" title="${c} elemen">${t.replace('IFC','')} (${c})</span>`)
-    .join('');
-
+  // ── Header
   const fields=[
     {l:'Nama Proyek',    v:d.header.projectName||d.header.longName},
     {l:'Nama Gedung',    v:d.header.buildingName},
@@ -1792,7 +2310,7 @@ function renderProps() {
     {l:'Aplikasi',       v:d.header.application},
     {l:'Lokasi',         v:d.header.address},
     {l:'Skema',          v:d.schema},
-    {l:'Satuan Panjang', v:(d.header.lengthUnit||'m')+' → konversi ke m (×'+d.unitFactor+')'},
+    {l:'Satuan Panjang', v:(d.header.lengthUnit||'m')+' → m (×'+d.unitFactor+')'},
     {l:'Timestamp',      v:d.header.timeStamp},
     {l:'File',           v:d.header.fileName},
     {l:'Total Entitas',  v:fmti(d.totalEntities)},
@@ -1802,17 +2320,161 @@ function renderProps() {
     <div class="hcard"><div class="hlbl">${f.l}</div><div class="hval">${esc(f.v)}</div></div>`).join('');
 }
 
-function renderPropTable(props) {
-  document.getElementById('ptbody').innerHTML = props.map(p=>`
-    <tr>
-      <td class="pkey">${esc(p.name)}</td>
-      <td class="pmono" style="font-size:11px">${esc(String(p.value??'—'))}</td>
-      <td><span class="pbadge">${p.unit||'—'}</span></td>
-    </tr>
-  `).join('')||`<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--slate3)">—</td></tr>`;
+function filterElemTable() {
+  const q      = (document.getElementById('elem-search')?.value || '').toLowerCase();
+  const tFilter= document.getElementById('elem-type-filter')?.value || '';
+  const sFilter= document.getElementById('elem-storey-filter')?.value || '';
+  let rows = _ELEM_ROWS;
+  if (q)       rows = rows.filter(e => (e.name||'').toLowerCase().includes(q) || e.type.toLowerCase().includes(q));
+  if (tFilter) rows = rows.filter(e => e.type === tFilter);
+  if (sFilter) rows = rows.filter(e => e.storeyName === sFilter);
+
+  const PAGE = 200; // max rows rendered for performance
+  const shown = rows.slice(0, PAGE);
+  document.getElementById('elem-table-badge').textContent =
+    rows.length + ' elemen' + (rows.length > PAGE ? ' (tampil '+PAGE+')' : '');
+
+  document.getElementById('elem-tbody').innerHTML = shown.map(e => {
+    const cfg = ECFG[e.type] || { lbl: e.type.replace('IFC',''), col: '#3a566e' };
+    const mat = (e.material||'').split(';')[0].trim();
+    return `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--slate3)">#${e.id}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div style="width:6px;height:6px;border-radius:50%;background:${cfg.col};flex-shrink:0"></div>
+        <span style="font-size:11px;color:var(--slate2)">${cfg.lbl}</span>
+      </div></td>
+      <td style="color:var(--white2);font-size:12px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.name||'—')}</td>
+      <td style="font-size:11px;color:var(--slate2)">${esc(e.storeyName)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:${e.GrossVolume>0?'var(--tq-300)':'var(--slate3)'}">${e.GrossVolume>0?fmt(e.GrossVolume,3):'—'}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:${e.GrossArea>0?'var(--gold)':'var(--slate3)'}">${e.GrossArea>0?fmt(e.GrossArea,2):'—'}</td>
+      <td style="font-size:11px;color:var(--slate2);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.material||'')}">${esc(mat||'—')}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada elemen</td></tr>`;
 }
-function filterProps(q) {
-  renderPropTable(q ? ALL_PROPS.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())) : ALL_PROPS);
+
+function renderPsetTable(psets) {
+  document.getElementById('pset-tbody').innerHTML = psets.map(p => {
+    const vals = [...p.values].join(' / ');
+    // Color-code boolean values
+    const valsHtml = vals === 'True' ? `<span style="color:var(--sage)">True</span>`
+      : vals === 'False' ? `<span style="color:var(--slate3)">False</span>`
+      : `<span style="color:var(--tq-300)">${esc(vals)}</span>`;
+    return `<tr>
+      <td style="color:var(--white2);font-weight:500;font-size:12px">${esc(p.name)}</td>
+      <td style="font-size:11px;color:var(--slate2)">${esc(p.type)}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${valsHtml}</td>
+      <td style="font-size:11px;color:var(--slate3)">${esc(p.pset)}</td>
+      <td style="font-size:10px;color:var(--slate3);font-family:'JetBrains Mono',monospace;text-align:right">${p.count}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada properti set ditemukan</td></tr>`;
+}
+
+function filterPsets(q) {
+  const psets = window._ALL_PSETS || [];
+  const ql = (q||'').toLowerCase();
+  const filtered = ql
+    ? psets.filter(p =>
+        p.name.toLowerCase().includes(ql) ||
+        p.type.toLowerCase().includes(ql) ||
+        [...p.values].some(v => String(v).toLowerCase().includes(ql)) ||
+        p.pset.toLowerCase().includes(ql))
+    : psets;
+  renderPsetTable(filtered);
+  document.getElementById('pset-badge').textContent = filtered.length + (ql ? '/'+psets.length : '') + ' baris';
+}
+
+// Legacy stubs — no longer used but kept to avoid errors
+function renderPropTable() {}
+function filterProps() {}
+
+function renderMatTable(mats) {
+  const total = window._MAT_TOTAL || 1;
+  document.getElementById('mat-tbody').innerHTML = mats.map(([n,c], i) => {
+    const pct = total > 0 ? Math.round(c / total * 100) : 0;
+    const col  = MCOLS[i % MCOLS.length];
+    return `<tr>
+      <td style="color:var(--white2);font-weight:500;font-size:12px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0"></div>
+          <span title="${esc(n)}">${esc(n)}</span>
+        </div>
+      </td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tq-300)">${c}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:3px;background:var(--navy-600);border-radius:2px">
+            <div style="width:${pct}%;height:100%;border-radius:2px;background:${col}"></div>
+          </div>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--slate3);min-width:26px">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada material</td></tr>`;
+}
+
+function filterMats(q) {
+  const mats = window._ALL_MATS || [];
+  const filtered = q ? mats.filter(([n]) => n.toLowerCase().includes(q.toLowerCase())) : mats;
+  renderMatTable(filtered);
+  document.getElementById('mat-list-badge').textContent = filtered.length + (q ? '/'+mats.length : '') + ' jenis';
+}
+
+// ═══════════════════════════════════════════════════════════
+// STOREY CHART TOGGLE
+// ═══════════════════════════════════════════════════════════
+function buildStoreyChart(mode) {
+  const d = DATA;
+  if (!d) return;
+  const labels = d.storeys.map(s=>s.name.length>14?s.name.slice(0,13)+'…':s.name);
+  // Update button styles
+  ['vol','area','cnt'].forEach(m => {
+    const btn = document.getElementById('btn-stor-'+m);
+    if (!btn) return;
+    if (m === mode) {
+      btn.style.background = 'var(--tq-500)';
+      btn.style.color = 'var(--navy-900)';
+      btn.style.fontWeight = '600';
+    } else {
+      btn.style.background = 'var(--navy-600)';
+      btn.style.color = 'var(--slate2)';
+      btn.style.fontWeight = '400';
+    }
+  });
+  let datasets, yLabel, title;
+  if (mode === 'vol') {
+    datasets = [{
+      label:'Volume Bruto (m³)',
+      data: d.storeys.map(s=>s.totals.GrossVolume),
+      backgroundColor: d.storeys.map((_,i)=>`hsla(${180+i*10},70%,${45+i*3}%,0.85)`),
+      borderRadius:4,borderWidth:0
+    }];
+    yLabel = 'm³';
+  } else if (mode === 'area') {
+    datasets = [{
+      label:'Luas Bruto (m²)',
+      data: d.storeys.map(s=>s.totals.GrossArea),
+      backgroundColor: d.storeys.map((_,i)=>`hsla(${200+i*10},65%,${45+i*3}%,0.85)`),
+      borderRadius:4,borderWidth:0
+    }];
+    yLabel = 'm²';
+  } else {
+    datasets = [{
+      label:'Jumlah Elemen',
+      data: d.storeys.map(s=>s.totals.cnt),
+      backgroundColor: d.storeys.map((_,i)=>`hsla(${185+i*12},70%,${40+i*4}%,0.85)`),
+      borderRadius:4,borderWidth:0
+    }];
+    yLabel = 'unit';
+  }
+  mkChart('ch-stor',{type:'bar',data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:tt()},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10}},title:{display:true,text:yLabel,color:tc(),font:{size:9}}},
+            y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}});
+}
+function toggleStoreyChart(mode) {
+  window._STOR_MODE = mode;
+  buildStoreyChart(mode);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1880,6 +2542,7 @@ function processFile(file) {
         setProgress(98, 'Merender BIM checklist…');
         renderBIM();
         setProgress(99, 'Merender properti…');
+        renderRuang();
         renderProps();
         setProgress(100, 'Selesai!');
 
@@ -1921,7 +2584,7 @@ function processFile(file) {
 }
 
 function resetApp() {
-  DATA = null; QTO_STOREY = 'all'; QTO_SORT = {col:'GrossVolume',dir:-1};
+  DATA = null; QTO_STOREY = 'all'; QTO_SORT = {col:'GrossVolume',dir:-1}; _RUANG_ROWS = [];
   Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
   CHARTS = {};
   document.getElementById('screen-dash').style.display   = 'none';
