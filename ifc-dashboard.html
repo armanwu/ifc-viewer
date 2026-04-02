@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IFC Dashboard</title>
+  <!-- BUILD: 20260402-102812 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // Override Chart.js global defaults for dark theme
@@ -970,7 +971,7 @@ body {
     <div class="note" id="carbon-note">
       <strong>Cara hitung:</strong>
       <code style="font-size:11px;background:rgba(0,181,181,.15);padding:1px 5px;border-radius:3px">Volume (m³) × Faktor Emisi (kgCO₂e/m³) ÷ 1000 = tCO₂e</code>
-      · Faktor dari <strong>ICE Database v3</strong> (Bath University, UK) — dicocokkan per material, fallback per tipe elemen.
+      · Faktor emisi dari <strong>SNI 7188.7:2020 + IEBC 2021</strong> (kgCO₂e/kg). Formula: <code style="font-size:10px;background:rgba(0,181,181,.15);padding:1px 4px;border-radius:3px">m³ × kg/m³ × kgCO₂e/kg</code>. Sumber volume: <strong>GrossVolume IFC</strong> (prioritas) → <strong>Area×Tebal</strong> (jika tidak ada) → elemen tanpa volume tidak dihitung.
       Cakupan: <strong>A1–A3</strong> (produksi material) saja. Tidak mencakup transportasi (A4), konstruksi (A5), operasional (B), atau akhir masa pakai (C).
     </div>
 
@@ -993,8 +994,9 @@ body {
           <table class="qtable">
             <thead><tr>
               <th style="cursor:default">Tipe</th>
+              <th style="cursor:default">Material</th>
               <th style="cursor:default;text-align:right">Vol (m³)</th>
-              <th style="cursor:default;text-align:right">kgCO₂e/m³</th>
+              <th style="cursor:default;text-align:right" title="Density × EF/kg">kgCO₂e/m³</th>
               <th style="cursor:default;text-align:right">Total (tCO₂e)</th>
               <th style="cursor:default">%</th>
             </tr></thead>
@@ -1065,7 +1067,7 @@ body {
       <div class="panel">
         <div class="ph">
           <span class="pt">Faktor Emisi yang Digunakan</span>
-          <span class="ps">ICE Database v3 · A1–A3</span>
+          <span class="ps">SNI 7188.7:2020 + IEBC 2021 · A1–A3</span>
         </div>
         <div class="pb" id="carbon-factors" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px"></div>
       </div>
@@ -1338,17 +1340,40 @@ function parseIFC(text, onProgress) {
   if (fdM)  { header.description = fdM[1].replace(/['"]/g,'').trim(); }
   if (schM) header.schema = schM[1];
 
-  // ── Unit system (detect MILLI, CENTI, or plain METRE for length)
-  let unitFactor = 1.0; // default: metres
+  // ── Unit system — baca LENGTH, VOLUME, AREA secara terpisah
+  // Revit IFC4: LENGTHUNIT=mm (×0.001) tapi VOLUMEUNIT=CUBIC_METRE (×1.0)
+  // Keduanya HARUS dibaca terpisah, jangan asumsi vol = length^3
+  let unitFactor = 1.0;
+  let volFactor  = null;
+  let areaFactor = null;
+
+  function siPfx(raw) {
+    if (raw.includes('.MILLI.')) return 0.001;
+    if (raw.includes('.CENTI.')) return 0.01;
+    if (raw.includes('.DECI.'))  return 0.1;
+    return 1.0;
+  }
+
   for (const id of (byType['IFCSIUNIT'] || [])) {
     const raw = entities[id].raw;
-    if (!raw.includes('LENGTHUNIT')) continue;
-    if (raw.includes('.MILLI.'))      unitFactor = 0.001;
-    else if (raw.includes('.CENTI.')) unitFactor = 0.01;
-    else                              unitFactor = 1.0;
-    header.lengthUnit = unitFactor === 0.001 ? 'mm' : unitFactor === 0.01 ? 'cm' : 'm';
-    break;
+    if (raw.includes('LENGTHUNIT')) {
+      unitFactor = siPfx(raw);
+      header.lengthUnit = unitFactor===0.001?'mm':unitFactor===0.01?'cm':'m';
+    } else if (raw.includes('VOLUMEUNIT')) {
+      // Jika ada prefix (MILLI dll) → skala prefix^3
+      // Jika tidak ada prefix ($,. atau .$,.) → langsung 1.0 (CUBIC_METRE)
+      volFactor = raw.includes('.MILLI.')? 1e-9
+                : raw.includes('.CENTI.')? 1e-6
+                : 1.0;
+    } else if (raw.includes('AREAUNIT')) {
+      areaFactor = raw.includes('.MILLI.')? 1e-6
+                 : raw.includes('.CENTI.')? 1e-4
+                 : 1.0;
+    }
   }
+  // Fallback jika VOLUMEUNIT/AREAUNIT tidak dideklarasikan eksplisit
+  if (volFactor  === null) volFactor  = unitFactor * unitFactor * unitFactor;
+  if (areaFactor === null) areaFactor = unitFactor * unitFactor;
   header.lengthUnit = header.lengthUnit || 'm';
 
   // ── Project / Building / Site
@@ -1417,16 +1442,49 @@ function parseIFC(text, onProgress) {
     storeys[id] = {id, name, elevNative, elevM: round4(elevNative * unitFactor), elements: [], typeCounts: {}};
   }
 
+  // ── Physical element types (needs to be defined before containment loop)
+  const PHYS = new Set([
+    'IFCWALL','IFCWALLSTANDARDCASE','IFCSLAB','IFCCOLUMN','IFCBEAM',
+    'IFCDOOR','IFCWINDOW','IFCSTAIR','IFCSTAIRFLIGHT','IFCROOF',
+    'IFCFURNITURE','IFCFOOTING','IFCRAILING','IFCCOVERING','IFCMEMBER',
+    'IFCPLATE','IFCCURTAINWALL','IFCBUILDINGELEMENTPROXY',
+    'IFCLIGHTFIXTURE','IFCFLOWTERMINAL','IFCSYSTEMFURNITUREELEMENT',
+  ]);
+
   // ── Spatial containment: storey → element ids
   const storeyElems = {};
+  const elemToStorey = {}; // eid → storey id (untuk lookup cepat)
   for (const relId of (byType['IFCRELCONTAINEDINSPATIALSTRUCTURE'] || [])) {
     const raw = entities[relId].raw;
     const m = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
     if (!m) continue;
     const elemIds = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
     const sid = parseInt(m[2]);
-    if (sid in storeys) storeyElems[sid] = elemIds;
+    if (sid in storeys) {
+      if (!storeyElems[sid]) storeyElems[sid] = [];
+      storeyElems[sid].push(...elemIds);
+      for (const eid of elemIds) elemToStorey[eid] = sid;
+    }
   }
+  // Juga cek IFCRELAGGREGATES — beberapa elemen di-aggregate ke storey
+  for (const relId of (byType['IFCRELAGGREGATES'] || [])) {
+    const raw = entities[relId].raw;
+    const parts2 = splitP(raw);
+    const relatingId = parseInt((parts2[4]||'').replace('#',''));
+    if (!(relatingId in storeys)) continue;
+    const groups = [...raw.matchAll(/\(([#\d,\s]+)\)/g)];
+    if (!groups.length) continue;
+    const relatedIds = groups[groups.length-1][1].split(',')
+      .map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    for (const eid of relatedIds) {
+      if (eid in elemToStorey) continue; // sudah ter-assign
+      elemToStorey[eid] = relatingId;
+      if (!storeyElems[relatingId]) storeyElems[relatingId] = [];
+      storeyElems[relatingId].push(eid);
+    }
+  }
+
+  // (unassigned elements handled after sortedStoreys is built)
 
   onProgress(55, 'Membaca quantity sets…');
 
@@ -1473,6 +1531,12 @@ function parseIFC(text, onProgress) {
     }
   }
 
+  // Tipe elemen yang Width IFC = ketebalan material (bukan dimensi bukaan)
+  const THICK_VOL_TYPES = new Set([
+    'IFCWALL','IFCWALLSTANDARDCASE','IFCSLAB','IFCCOLUMN','IFCBEAM',
+    'IFCMEMBER','IFCPLATE','IFCFOOTING','IFCCOVERING','IFCROOF',
+  ]);
+
   function getQty(eid) {
     const r = {GrossVolume:0,NetVolume:0,GrossArea:0,NetArea:0,GrossSideArea:0,NetSideArea:0,Length:0,Height:0,Width:0,
               NetFloorArea:0,GrossFloorArea:0,FinishCeilingHeight:0,ClearHeight:0,NetPerimeter:0,GrossPerimeter:0,Area:0,Perimeter:0};
@@ -1482,12 +1546,38 @@ function parseIFC(text, onProgress) {
         if (q && q.name in r) r[q.name] += q.val;
       }
     }
-    // Convert length quantities from native unit to metres
-    r.Length_m             = round4(r.Length             * unitFactor);
-    r.Height_m             = round4(r.Height             * unitFactor);
-    r.Width_m              = round4(r.Width              * unitFactor);
-    r.FinishCeilingHeight  = round4(r.FinishCeilingHeight* unitFactor);
-    r.ClearHeight          = round4(r.ClearHeight        * unitFactor);
+
+    // ── Convert ke SI (m, m², m³)
+    // Volume: sanity check per elemen 0.0001–5000 m³ (sama dgn Embodied Calculator)
+    function safeVol(v) {
+      const converted = v * volFactor;
+      return (converted >= 0.0001 && converted <= 5000) ? round4(converted) : 0;
+    }
+    r.GrossVolume        = safeVol(r.GrossVolume);
+    r.NetVolume          = safeVol(r.NetVolume);
+
+    // Area
+    r.NetFloorArea       = round4(r.NetFloorArea       * areaFactor);
+    r.GrossFloorArea     = round4(r.GrossFloorArea     * areaFactor);
+    r.GrossArea          = round4(r.GrossArea          * areaFactor);
+    r.NetArea            = round4(r.NetArea            * areaFactor);
+    r.GrossSideArea      = round4(r.GrossSideArea      * areaFactor);
+    r.NetSideArea        = round4(r.NetSideArea        * areaFactor);
+    r.Area               = round4(r.Area               * areaFactor);
+
+    // Length
+    r.Length_m           = round4(r.Length             * unitFactor);
+    r.Height_m           = round4(r.Height             * unitFactor);
+    r.Width_m            = round4(r.Width              * unitFactor);
+    r.FinishCeilingHeight= round4(r.FinishCeilingHeight* unitFactor);
+    r.ClearHeight        = round4(r.ClearHeight        * unitFactor);
+
+    if (r.GrossVolume === 0 && r.NetVolume === 0) {
+      r._volSrc = 'none';
+    } else {
+      r._volSrc = 'ifc';
+    }
+
     return r;
   }
 
@@ -1672,14 +1762,6 @@ function parseIFC(text, onProgress) {
   onProgress(82, 'Agregasi elemen per lantai…');
 
   // ── Physical element types
-  const PHYS = new Set([
-    'IFCWALL','IFCWALLSTANDARDCASE','IFCSLAB','IFCCOLUMN','IFCBEAM',
-    'IFCDOOR','IFCWINDOW','IFCSTAIR','IFCSTAIRFLIGHT','IFCROOF',
-    'IFCFURNITURE','IFCFOOTING','IFCRAILING','IFCCOVERING','IFCMEMBER',
-    'IFCPLATE','IFCCURTAINWALL','IFCBUILDINGELEMENTPROXY',
-    'IFCLIGHTFIXTURE','IFCFLOWTERMINAL','IFCSYSTEMFURNITUREELEMENT',
-  ]);
-
   const allElemTypes = {};
   const allMaterials = {};
 
@@ -1712,6 +1794,21 @@ function parseIFC(text, onProgress) {
     return storeyNameOrder(a.name) - storeyNameOrder(b.name);
   });
 
+  // Elemen fisik tidak ter-assign ke storey → masuk ke storey paling bawah
+  {
+    const allPhysEids = [];
+    for (const t of PHYS) {
+      for (const eid of (byType[t] || [])) allPhysEids.push(eid);
+    }
+    const unassigned = allPhysEids.filter(eid => !(eid in elemToStorey));
+    if (unassigned.length > 0 && sortedStoreys.length > 0) {
+      const fallbackStoreyId = sortedStoreys[0].id;
+      if (!storeyElems[fallbackStoreyId]) storeyElems[fallbackStoreyId] = [];
+      storeyElems[fallbackStoreyId].push(...unassigned);
+      for (const eid of unassigned) elemToStorey[eid] = fallbackStoreyId;
+    }
+  }
+
   for (const s of sortedStoreys) {
     for (const eid of (storeyElems[s.id] || [])) {
       if (!(eid in entities)) continue;
@@ -1734,16 +1831,34 @@ function parseIFC(text, onProgress) {
         }
       }
 
+      // Fallback Area×Thickness hanya untuk tipe struktural/masif
+      // dan hanya jika Width benar-benar = ketebalan material (< 1.0m)
+      let gv = q.GrossVolume, nv = q.NetVolume;
+      let volSrcElem = q._volSrc || (gv > 0 || nv > 0 ? 'ifc' : 'none');
+      if (gv === 0 && nv === 0 && THICK_VOL_TYPES.has(t)) {
+        const area  = q.GrossArea || q.NetArea || q.Area || 0;
+        const thick = q.Width_m   || 0;   // Width untuk wall/slab = ketebalan
+        // Threshold ketat: 0.01m (10mm) – 1.0m (1000mm) = rentang material wajar
+        if (area > 0 && thick >= 0.01 && thick <= 1.0) {
+          const calcVol = round4(area * thick);
+          if (calcVol >= 0.0001 && calcVol <= 5000) {
+            gv = calcVol;
+            volSrcElem = 'calc';
+          }
+        }
+      }
+
       s.elements.push({
         id: eid, type: t, name: elemName, material: mat,
-        GrossVolume:   round4(q.GrossVolume),
-        NetVolume:     round4(q.NetVolume),
+        GrossVolume:   gv,
+        NetVolume:     nv,
         GrossArea:     round4(q.GrossArea),
         NetArea:       round4(q.NetArea),
         GrossSideArea: round4(q.GrossSideArea),
         Length_m:      q.Length_m,
         Height_m:      q.Height_m,
         Width_m:       q.Width_m,
+        _volSrc:       volSrcElem,
         props:         elemProps,
       });
 
@@ -1778,7 +1893,7 @@ function parseIFC(text, onProgress) {
     byType,
     totalEntities: Object.keys(entities).length,
     rawLines: lines.length,
-    unitFactor,
+    unitFactor, volFactor, areaFactor,
   };
 }
 
@@ -2102,90 +2217,155 @@ function renderRuangRekap(spaces) {
 // Faktor emisi: ICE Database v3 (Bath UK) kgCO₂e per m³
 // ═══════════════════════════════════════════════════════════
 
-// ── Faktor per tipe elemen (kgCO₂e/m³) ──
-const EC_BY_TYPE = {
-  IFCWALL:                250,   // Dinding rata-rata (beton+bata+finishing)
-  IFCWALLSTANDARDCASE:    250,
-  IFCSLAB:                300,   // Pelat beton bertulang
-  IFCCOLUMN:              400,   // Kolom beton bertulang (lebih padat)
-  IFCBEAM:                400,   // Balok beton bertulang
-  IFCMEMBER:              1200,  // Profil baja struktural (ICE: ~1.37 kgCO₂e/kg, ~7850 kg/m³ → ~10.750, dibagi faktor utilitas)
-  IFCPLATE:               1200,  // Pelat baja
-  IFCROOF:                200,   // Atap (campuran material)
-  IFCFOOTING:             320,   // Pondasi beton
-  IFCCURTAINWALL:         180,   // Curtain wall (kaca+aluminium, volume frame)
-  IFCWINDOW:              350,   // Jendela (kaca+frame)
-  IFCDOOR:                200,   // Pintu (kayu/besi)
-  IFCSTAIR:               300,   // Tangga beton
-  IFCSTAIRFLIGHT:         300,
-  IFCRAILING:             800,   // Railing baja
-  IFCCOVERING:            120,   // Penutup/finishing
-  IFCFURNITURE:            80,   // Furnitur (kayu, rendah)
-  IFCBUILDINGELEMENTPROXY: 200,  // Proxy (asumsi beton)
-  DEFAULT:                200,
+// ══════════════════════════════════════════════════════════════
+// EMISSION FACTORS (kgCO₂e/kg) — SNI 7188.7:2020 + IEBC 2021
+// ══════════════════════════════════════════════════════════════
+const EC_EF = {
+  'beton': 0.159, 'concrete': 0.159, 'reinforced concrete': 0.210, 'beton bertulang': 0.210,
+  'precast': 0.180, 'beton pracetak': 0.180, 'mortar': 0.208, 'semen': 0.820, 'cement': 0.820,
+  'bata merah': 0.213, 'brick': 0.213, 'clay brick': 0.213, 'bata': 0.213,
+  'bata hebel': 0.190, 'aac': 0.190, 'aac block': 0.190, 'hebel': 0.190, 'celcon': 0.190,
+  'batu alam': 0.079, 'stone': 0.079, 'granite': 0.130, 'granit': 0.130,
+  'marble': 0.120, 'marmer': 0.120, 'limestone': 0.090, 'batu kapur': 0.090,
+  'keramik': 0.670, 'ceramic': 0.670, 'tile': 0.670, 'porcelain': 0.670,
+  'gypsum': 0.380, 'plasterboard': 0.380, 'gypsum board': 0.380, 'gyp board': 0.380,
+  'baja': 1.770, 'steel': 1.770, 'structural steel': 1.770, 'mild steel': 1.770,
+  'baja ringan': 2.100, 'light steel': 2.100, 'light gauge': 2.100, 'hollow': 2.100,
+  'stainless': 6.150, 'stainless steel': 6.150,
+  'aluminium': 8.240, 'aluminum': 8.240, 'alumunium': 8.240, 'alloy': 8.240,
+  'copper': 3.810, 'tembaga': 3.810, 'besi': 1.910, 'iron': 1.910, 'cast iron': 1.910,
+  'kayu': 0.428, 'wood': 0.428, 'timber': 0.428, 'lumber': 0.428,
+  'plywood': 0.810, 'triplek': 0.810, 'multiplex': 0.810,
+  'mdf': 0.720, 'particle board': 0.720, 'particleboard': 0.720,
+  'glulam': 0.512, 'lvl': 0.390, 'bamboo': 0.092, 'bambu': 0.092,
+  'kaca': 1.350, 'glass': 1.350, 'glazing': 1.350,
+  'tempered glass': 1.530, 'kaca tempered': 1.530, 'laminated glass': 1.800,
+  'double glazing': 1.680, 'double glass': 1.680,
+  'genteng': 0.370, 'roof tile': 0.370, 'clay tile': 0.370, 'clay roof': 0.370,
+  'metal roof': 2.100, 'atap metal': 2.100, 'zincalume': 2.300, 'colorbond': 2.300,
+  'asphalt': 2.160, 'bitumen': 2.160,
+  'pvc': 3.100, 'vinyl': 3.100, 'upvc': 3.100,
+  'polycarbonate': 7.600, 'polikarbonat': 7.600,
+  'polyurethane': 4.260, 'pu foam': 4.260,
+  'eps': 3.290, 'xps': 3.800, 'styrofoam': 3.290,
+  'glasswool': 1.350, 'rockwool': 1.200, 'insulation': 1.200,
+  'cat': 2.470, 'paint': 2.470, 'coating': 2.470, 'waterproofing': 3.100,
+  'default': 0.300,
 };
 
-// ── Faktor per kata kunci material (kgCO₂e/m³) ──
-const EC_BY_MATERIAL = [
-  // keyword (lowercase) → faktor, label, sumber
-  { k:'concrete',      f:  270, lbl:'Beton',            src:'ICE v3: 0.103 kgCO₂e/kg × 2600 kg/m³' },
-  { k:'beton',         f:  270, lbl:'Beton',            src:'ICE v3' },
-  { k:'reinforced',    f:  310, lbl:'Beton Bertulang',  src:'ICE v3 + besi tulangan' },
-  { k:'bertulang',     f:  310, lbl:'Beton Bertulang',  src:'ICE v3 + besi tulangan' },
-  { k:'steel',         f: 1180, lbl:'Baja',             src:'ICE v3: 1.37 kgCO₂e/kg × 7850 kg/m³ (recycled mix)' },
-  { k:'baja',          f: 1180, lbl:'Baja',             src:'ICE v3' },
-  { k:'alumin',        f: 4200, lbl:'Aluminium',        src:'ICE v3: 6.7 kgCO₂e/kg × 2700 kg/m³ (50% recycled)' },
-  { k:'glass',         f:  300, lbl:'Kaca',             src:'ICE v3: 1.35 kgCO₂e/kg × 2500 kg/m³' },
-  { k:'kaca',          f:  300, lbl:'Kaca',             src:'ICE v3' },
-  { k:'timber',        f:  130, lbl:'Kayu',             src:'ICE v3: 0.31 kgCO₂e/kg × 500 kg/m³' },
-  { k:'kayu',          f:  130, lbl:'Kayu',             src:'ICE v3' },
-  { k:'wood',          f:  130, lbl:'Kayu',             src:'ICE v3' },
-  { k:'brick',         f:  330, lbl:'Bata',             src:'ICE v3: 0.24 kgCO₂e/kg × 1800 kg/m³' },
-  { k:'bata',          f:  330, lbl:'Bata',             src:'ICE v3' },
-  { k:'gypsum',        f:  130, lbl:'Gypsum',           src:'ICE v3: 0.12 kgCO₂e/kg × 900 kg/m³' },
-  { k:'gyp',           f:  130, lbl:'Gypsum',           src:'ICE v3' },
-  { k:'plaster',       f:  130, lbl:'Plesteran',        src:'ICE v3' },
-  { k:'insul',         f:   80, lbl:'Insulasi',         src:'ICE v3 EPS/mineral wool avg' },
-  { k:'ceramic',       f:  360, lbl:'Keramik',          src:'ICE v3: 0.1 kgCO₂e/kg × 2300 kg/m³' },
-  { k:'keramik',       f:  360, lbl:'Keramik',          src:'ICE v3' },
-  { k:'granite',       f:  280, lbl:'Granit',           src:'ICE v3' },
-  { k:'granit',        f:  280, lbl:'Granit',           src:'ICE v3' },
-  { k:'stone',         f:  220, lbl:'Batu',             src:'ICE v3' },
-  { k:'batu',          f:  220, lbl:'Batu',             src:'ICE v3' },
-  { k:'paint',         f:   60, lbl:'Cat',              src:'ICE v3' },
-  { k:'cat',           f:   60, lbl:'Cat',              src:'ICE v3' },
-  { k:'copper',        f: 3100, lbl:'Tembaga',          src:'ICE v3' },
-  { k:'zinc',          f: 2900, lbl:'Seng',             src:'ICE v3' },
-  { k:'iron',          f:  990, lbl:'Besi',             src:'ICE v3' },
-  { k:'besi',          f:  990, lbl:'Besi',             src:'ICE v3' },
-];
+// Density (kg/m³)
+const EC_DENSITY = {
+  'beton': 2400, 'concrete': 2400, 'reinforced concrete': 2500, 'beton bertulang': 2500,
+  'precast': 2400, 'mortar': 2000, 'semen': 1500, 'cement': 1500,
+  'bata merah': 1800, 'brick': 1800, 'bata': 1800, 'bata hebel': 600, 'aac': 600, 'aac block': 600,
+  'batu alam': 2600, 'granite': 2700, 'granit': 2700, 'marble': 2750, 'marmer': 2750, 'limestone': 2300,
+  'keramik': 2000, 'ceramic': 2000, 'tile': 2000, 'porcelain': 2300,
+  'gypsum': 900, 'gypsum board': 750, 'plasterboard': 750,
+  'baja': 7850, 'steel': 7850, 'baja ringan': 4500, 'light steel': 4500,
+  'stainless': 7900, 'stainless steel': 7900,
+  'aluminium': 2700, 'aluminum': 2700, 'alumunium': 2700,
+  'copper': 8960, 'tembaga': 8960, 'besi': 7870, 'iron': 7870,
+  'kayu': 550, 'wood': 550, 'timber': 550, 'plywood': 550, 'mdf': 680, 'glulam': 500, 'bamboo': 700,
+  'kaca': 2500, 'glass': 2500, 'glazing': 2500, 'tempered glass': 2500,
+  'pvc': 1380, 'vinyl': 1380, 'polycarbonate': 1200, 'polyurethane': 40,
+  'eps': 20, 'xps': 35, 'glasswool': 30, 'rockwool': 100, 'insulation': 30,
+  'default': 1000,
+};
 
-function getECFactor(type, material) {
-  // Coba dari material dulu (lebih spesifik)
-  if (material) {
-    const ml = material.toLowerCase();
-    for (const em of EC_BY_MATERIAL) {
-      if (ml.includes(em.k)) return {f: em.f, src: em.src, lbl: em.lbl};
-    }
+// Material fallback per tipe elemen (kalau tidak ada material di IFC)
+const EC_MAT_FALLBACK = {
+  IFCWALL:                  'beton', IFCWALLSTANDARDCASE:     'beton',
+  IFCSLAB:                  'beton bertulang', IFCCOLUMN:     'beton bertulang',
+  IFCBEAM:                  'beton bertulang', IFCMEMBER:     'baja',
+  IFCPLATE:                 'baja',  IFCROOF:                 'genteng',
+  IFCFOOTING:               'beton bertulang', IFCCURTAINWALL:'kaca',
+  IFCWINDOW:                'kaca',  IFCDOOR:                 'kayu',
+  IFCSTAIR:                 'beton', IFCSTAIRFLIGHT:          'beton',
+  IFCRAILING:               'baja',  IFCCOVERING:             'keramik',
+  IFCFURNITURE:             'kayu',  IFCBUILDINGELEMENTPROXY: 'beton',
+  DEFAULT:                  'beton',
+};
+
+// Lookup EF (kgCO₂e/kg) dari nama material
+function lookupEF(name) {
+  const k = (name||'').toLowerCase().trim();
+  if (EC_EF[k]) return EC_EF[k];
+  for (const key of Object.keys(EC_EF)) {
+    if (key !== 'default' && (k.includes(key) || key.includes(k))) return EC_EF[key];
   }
-  // Fallback ke tipe elemen
-  const f = EC_BY_TYPE[type] || EC_BY_TYPE.DEFAULT;
-  return {f, src: 'Estimasi per tipe elemen', lbl: (ECFG[type]||{lbl:type.replace('IFC','')}).lbl};
+  return EC_EF['default'];
 }
 
+// Lookup density (kg/m³) dari nama material
+function lookupDensity(name) {
+  const k = (name||'').toLowerCase().trim();
+  if (EC_DENSITY[k]) return EC_DENSITY[k];
+  for (const key of Object.keys(EC_DENSITY)) {
+    if (key !== 'default' && (k.includes(key) || key.includes(k))) return EC_DENSITY[key];
+  }
+  return EC_DENSITY['default'];
+}
+
+// Cari material terbaik untuk elemen, return {matName, ef, density, efPerM3, src}
+function getECFactor(type, material) {
+  // Coba dari material IFC dulu (lebih spesifik)
+  let matName = null;
+  if (material) {
+    // Coba setiap segmen material (dipisah ;)
+    const segs = material.split(';').map(s=>s.trim()).filter(Boolean);
+    for (const seg of segs) {
+      const k = seg.toLowerCase();
+      if (EC_EF[k]) { matName = seg; break; }
+      for (const key of Object.keys(EC_EF)) {
+        if (key !== 'default' && (k.includes(key) || key.includes(k))) { matName = seg; break; }
+      }
+      if (matName) break;
+    }
+  }
+  // Fallback ke material default per tipe elemen
+  const src = matName ? 'IFC material' : 'fallback per tipe';
+  if (!matName) matName = EC_MAT_FALLBACK[type] || EC_MAT_FALLBACK.DEFAULT;
+
+  const ef      = lookupEF(matName);
+  const density = lookupDensity(matName);
+  const efPerM3 = ef * density; // kgCO₂e/m³ = kgCO₂e/kg × kg/m³
+
+  return { matName, ef, density, efPerM3, src };
+}
+
+// Volume estimasi per unit (m³/elemen) — fallback untuk Embodied Carbon
+// Dipakai saat elemen tidak punya GrossVolume/NetVolume di IfcQuantitySet
+const EC_VOL_FALLBACK = {
+  IFCWALL:4.80, IFCWALLSTANDARDCASE:4.80, IFCSLAB:12.0, IFCCOLUMN:0.60,
+  IFCBEAM:0.45, IFCMEMBER:0.15, IFCPLATE:0.12, IFCROOF:8.00,
+  IFCFOOTING:3.60, IFCCURTAINWALL:2.00, IFCWINDOW:0.03, IFCDOOR:0.06,
+  IFCSTAIR:2.40, IFCSTAIRFLIGHT:2.40, IFCRAILING:0.05, IFCCOVERING:0.50,
+  IFCFURNITURE:0.08, IFCBUILDINGELEMENTPROXY:0.20,
+};
+
+// EC_BY_MATERIAL alias removed — pakai EC_EF + EC_DENSITY langsung
+
 function renderCarbon() {
+  try {
   const d = DATA;
   // Kumpulkan semua elemen dengan volume
+  // Formula: carbon (kgCO₂e) = volume (m³) × density (kg/m³) × EF (kgCO₂e/kg)
   const elemRows = [];
   for (const s of d.storeys) {
     for (const e of s.elements) {
-      const vol = e.GrossVolume || e.NetVolume || 0;
-      if (vol <= 0) continue;
-      const ec = getECFactor(e.type, e.material);
-      const kgco2 = round4(vol * ec.f);
+      // Volume: GrossVolume/NetVolume dari IFC (sudah di-sanity-check di getQty)
+      // Kalau 0 tapi ada area×tebal → sudah diisi oleh getQty dengan _volSrc='calc'
+      let vol    = e.GrossVolume || e.NetVolume || 0;
+      let volSrc = e._volSrc || (vol > 0 ? 'ifc' : 'none');
+      if (vol <= 0) continue;  // skip: tidak ada volume IFC maupun Area×Tebal
+      const ec    = getECFactor(e.type, e.material);
+      const kgco2 = round4(vol * ec.density * ec.ef);
       elemRows.push({
         type: e.type, name: e.name, material: e.material||'',
-        vol, ecFactor: ec.f, kgco2,
+        matUsed: ec.matName, matSrc: ec.src,
+        vol, volSrc, density: ec.density, ef: ec.ef,
+        ecFactor: round4(ec.efPerM3),
+        kgco2,
         tco2: round4(kgco2 / 1000),
         storey: s.name, storeyId: s.id,
       });
@@ -2206,31 +2386,33 @@ function renderCarbon() {
   // Commercial:   <350 good, <500 average, <750 high, >750 very high
   // Gunakan benchmark mixed/office sebagai default
   // Sumber: IStructE 2020, LETI 2020, RIBA 2030
-  function getVerdict(kgPerM2) {
-    if (kgPerM2 <= 0)   return null;
-    if (kgPerM2 < 300)  return {level:1, label:'Sangat Rendah',  desc:'Di bawah target RIBA 2030 (<300 kgCO₂e/m²). Kinerja karbon sangat baik.', color:'#2ec98a', bg:'rgba(46,201,138,0.08)', border:'rgba(46,201,138,0.25)', icon:'🌿'};
-    if (kgPerM2 < 500)  return {level:2, label:'Rendah',         desc:'Memenuhi target aspirasional RIBA 2030 (300–500 kgCO₂e/m²). Kinerja karbon baik.', color:'#27cfc0', bg:'rgba(39,207,192,0.08)', border:'rgba(39,207,192,0.25)', icon:'✓'};
-    if (kgPerM2 < 750)  return {level:3, label:'Sedang',         desc:'Rentang rata-rata industri (500–750 kgCO₂e/m²). Masih ada ruang perbaikan.', color:'#f5b840', bg:'rgba(245,184,64,0.08)', border:'rgba(245,184,64,0.25)', icon:'◑'};
-    if (kgPerM2 < 1000) return {level:4, label:'Tinggi',         desc:'Di atas rata-rata (750–1000 kgCO₂e/m²). Pertimbangkan material rendah karbon.', color:'#fb923c', bg:'rgba(251,146,60,0.08)', border:'rgba(251,146,60,0.25)', icon:'⚠'};
-    return               {level:5, label:'Sangat Tinggi',        desc:'Jauh di atas benchmark (>1000 kgCO₂e/m²). Perlu evaluasi material dan struktur secara menyeluruh.', color:'#f06060', bg:'rgba(240,96,96,0.08)', border:'rgba(240,96,96,0.25)', icon:'⛔'};
+  // Penilaian berbasis intensitas kgCO₂e/m³ volume material
+  // Sumber: RICS Whole Life Carbon Assessment 2023 (Asia Tenggara/tropis)
+  function getVerdict(kgPerM3) {
+    if (kgPerM3 <= 0)    return null;
+    if (kgPerM3 < 300)   return {level:1, label:'Sangat Rendah', ref:'< 300 kgCO₂e/m³',    desc:'Di bawah threshold bangunan hijau. Kinerja karbon sangat baik.', color:'#2ec98a', bg:'rgba(46,201,138,0.08)', border:'rgba(46,201,138,0.25)', icon:'🌿'};
+    if (kgPerM3 < 600)   return {level:2, label:'Rendah',        ref:'300–600 kgCO₂e/m³',  desc:'Best practice industri konstruksi. Kinerja karbon baik.', color:'#27cfc0', bg:'rgba(39,207,192,0.08)', border:'rgba(39,207,192,0.25)', icon:'✓'};
+    if (kgPerM3 < 900)   return {level:3, label:'Sedang',        ref:'600–900 kgCO₂e/m³',  desc:'Standar industri Indonesia rata-rata. Masih ada ruang perbaikan material.', color:'#f5b840', bg:'rgba(245,184,64,0.08)', border:'rgba(245,184,64,0.25)', icon:'◑'};
+    if (kgPerM3 < 1300)  return {level:4, label:'Tinggi',        ref:'900–1300 kgCO₂e/m³', desc:'Di atas rata-rata. Pertimbangkan substitusi material rendah karbon.', color:'#fb923c', bg:'rgba(251,146,60,0.08)', border:'rgba(251,146,60,0.25)', icon:'⚠'};
+    return                {level:5, label:'Sangat Tinggi',       ref:'≥ 1300 kgCO₂e/m³',   desc:'Jauh di atas benchmark. Perlu evaluasi menyeluruh material dan sistem struktur.', color:'#f06060', bg:'rgba(240,96,96,0.08)', border:'rgba(240,96,96,0.25)', icon:'⛔'};
   }
 
-  const verdict = getVerdict(perM2);
+  const verdict = getVerdict(intensity);   // intensity = kgCO₂e/m³ volume
   const verdictEl = document.getElementById('carbon-verdict');
   if (verdict && verdictEl) {
     const levels = [
       {label:'Sangat Rendah', max:300},
-      {label:'Rendah',        max:500},
-      {label:'Sedang',        max:750},
-      {label:'Tinggi',        max:1000},
+      {label:'Rendah',        max:600},
+      {label:'Sedang',        max:900},
+      {label:'Tinggi',        max:1300},
       {label:'Sangat Tinggi', max:Infinity},
     ];
-    const barMax = Math.max(perM2 * 1.3, 1200);
+    const barMax = Math.max(intensity * 1.3, 1500);
     const benchmarks = [
-      {val:300,  label:'Target 2030',  color:'rgba(46,201,138,0.7)'},
-      {val:500,  label:'Aspirasional', color:'rgba(39,207,192,0.7)'},
-      {val:750,  label:'Rata-rata',    color:'rgba(245,184,64,0.7)'},
-      {val:1000, label:'Tinggi',       color:'rgba(251,146,60,0.7)'},
+      {val:300,  label:'300', color:'rgba(46,201,138,0.7)'},
+      {val:600,  label:'600', color:'rgba(39,207,192,0.7)'},
+      {val:900,  label:'900', color:'rgba(245,184,64,0.7)'},
+      {val:1300, label:'1300',color:'rgba(251,146,60,0.7)'},
     ];
 
     verdictEl.style.cssText = 'background:'+verdict.bg+';border-color:'+verdict.border;
@@ -2244,9 +2426,9 @@ function renderCarbon() {
             +'<div style="font-size:22px;font-weight:700;color:'+verdict.color+';letter-spacing:-.4px;margin-bottom:6px">'+verdict.label+'</div>'
             +'<div style="font-size:13px;color:var(--slate);line-height:1.6">'+verdict.desc+'</div>'
             +'<div style="font-size:12px;color:var(--slate2);margin-top:8px">'
-              +'Intensitas: <strong style="color:'+verdict.color+'">'+fmt(perM2,1)+' kgCO₂e/m²</strong>'
+              +'Intensitas: <strong style="color:'+verdict.color+'">'+fmt(intensity,0)+' kgCO₂e/m³</strong>'
+              +' · Per m² GFA: <strong style="color:var(--tq-300)">'+fmt(perM2,0)+' kgCO₂e/m²</strong>'
               +' · Total: <strong style="color:var(--gold)">'+fmt(totalTco2,1)+' tCO₂e</strong>'
-              +' · Luas: <strong style="color:var(--tq-300)">'+fmt(floorArea,0)+' m²</strong>'
             +'</div>'
           +'</div>'
         +'</div>'
@@ -2263,8 +2445,8 @@ function renderCarbon() {
                 +'<div style="position:absolute;top:24px;left:'+pct+'%;transform:translateX(-50%);font-size:9px;color:var(--slate3);white-space:nowrap">'+b.val+'</div>';
             }).join('')
             // Current position marker
-            +'<div style="position:absolute;top:-4px;bottom:-4px;left:'+Math.min(perM2/barMax*100,100)+'%;width:3px;background:white;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 6px rgba(255,255,255,0.6)"></div>'
-            +'<div style="position:absolute;top:-22px;left:'+Math.min(perM2/barMax*100,100)+'%;transform:translateX(-50%);font-size:10px;font-weight:700;color:white;background:'+verdict.color+';padding:1px 6px;border-radius:4px;white-space:nowrap">'+fmt(perM2,0)+'</div>'
+            +'<div style="position:absolute;top:-4px;bottom:-4px;left:'+Math.min(intensity/barMax*100,100)+'%;width:3px;background:white;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 6px rgba(255,255,255,0.6)"></div>'
+            +'<div style="position:absolute;top:-22px;left:'+Math.min(intensity/barMax*100,100)+'%;transform:translateX(-50%);font-size:10px;font-weight:700;color:white;background:'+verdict.color+';padding:1px 6px;border-radius:4px;white-space:nowrap">'+fmt(intensity,0)+'</div>'
           +'</div>'
           // Level labels
           +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'
@@ -2276,7 +2458,7 @@ function renderCarbon() {
                 +';color:'+(active?cols[i]:'var(--slate3)')+';font-weight:'+(active?'700':'400')+'">'+l.label+'</div>';
             }).join('')
           +'</div>'
-          +'<div style="font-size:10px;color:var(--slate3);margin-top:8px">Sumber: RIBA 2030 Climate Challenge · IStructE 2020 · LETI 2020</div>'
+          +'<div style="font-size:10px;color:var(--slate3);margin-top:8px">Sumber: RICS Whole Life Carbon Assessment 2023 · SNI 7188.7:2020 · IEBC 2021</div>'
         +'</div>'
       +'</div>';
   } else if (verdictEl) {
@@ -2288,17 +2470,22 @@ function renderCarbon() {
     {cls:'c-gold', lbl:'Per m² Luas Lantai',    val: fmt(perM2,1),       unit:'kgCO₂e/m²'},
     {cls:'c-sage', lbl:'Intensitas Volume',      val: fmt(intensity,1),   unit:'kgCO₂e/m³'},
     {cls:'c-lil',  lbl:'Volume Dihitung',        val: fmt(totalVol,1),    unit:'m³ ('+totalElem+' elemen)'},
-    {cls:'c-rose', lbl:'Elemen Tanpa Volume',    val: fmti(d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.NetVolume===0).length,0)), unit:'tidak dihitung'},
-    {cls:'c-teal', lbl:'Sumber Faktor',          val: 'ICE v3',           unit:'Bath University UK'},
+    {cls:'c-rose', lbl:'Volume Estimasi',
+      val: fmti(elemRows.filter(r=>r.volSrc==='calc').length),
+      unit:'elemen (area×tebal)'},
+    {cls:'c-teal', lbl:'Sumber Faktor',          val: 'SNI+IEBC',         unit:'Indonesia · A1–A3'},
   ].map(k=>'<div class="qsc '+k.cls+'"><div class="qsc-lbl">'+k.lbl+'</div><div class="qsc-val">'+k.val+'</div><div class="qsc-unit">'+k.unit+'</div></div>').join('');
 
   // ── Per Tipe Elemen ──
   const byType = {};
   for (const r of elemRows) {
-    if (!byType[r.type]) byType[r.type] = {type:r.type, vol:0, tco2:0, cnt:0, factor: r.ecFactor};
+    if (!byType[r.type]) byType[r.type] = {type:r.type, vol:0, tco2:0, cnt:0, cntEst:0,
+      ef: r.ef, density: r.density, factor: r.ecFactor, matUsed: r.matUsed, matSrc: r.matSrc, volSrc:'ifc'};
     byType[r.type].vol  += r.vol;
     byType[r.type].tco2 += r.tco2;
     byType[r.type].cnt  += 1;
+    if (r.volSrc==='est') byType[r.type].cntEst += 1;
+    if (r.volSrc==='est' && byType[r.type].volSrc==='ifc') byType[r.type].volSrc='est';
   }
   const typeRows = Object.values(byType).sort((a,b)=>b.tco2-a.tco2);
   typeRows.forEach(r=>{r.vol=round4(r.vol);r.tco2=round4(r.tco2);});
@@ -2307,10 +2494,13 @@ function renderCarbon() {
   document.getElementById('carbon-type-tbody').innerHTML = typeRows.map(r=>{
     const cfg = ECFG[r.type]||{lbl:r.type.replace('IFC',''),col:'#3a566e'};
     const pct = totTypeTco2>0 ? Math.round(r.tco2/totTypeTco2*100) : 0;
+    const srcIcon = r.matSrc==='IFC material' ? '🟢' : '🟡';
+    const volIcon = (r.volSrc||'ifc')==='ifc' ? '' : ' <span title="Volume estimasi (fallback)" style="font-size:9px;color:var(--am)">est</span>';
     return '<tr>'
       +'<td><div class="tcell"><div class="tdot" style="background:'+cfg.col+'"></div><div class="tname">'+cfg.lbl+'</div></div></td>'
-      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tq-300)">'+fmt(r.vol,1)+'</td>'
-      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--slate2)">'+r.factor+'</td>'
+      +'<td style="font-size:10px;color:var(--slate2)" title="Sumber: '+r.matSrc+'">'+srcIcon+' '+esc(r.matUsed||'—')+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tq-300)">'+fmt(r.vol,1)+volIcon+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--slate2)" title="'+r.density+' kg/m³ × '+r.ef+' kgCO₂e/kg">'+fmt(r.factor,0)+'</td>'
       +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--gold);font-weight:600">'+fmt(r.tco2,2)+'</td>'
       +'<td><div style="display:flex;align-items:center;gap:5px">'
         +'<div style="flex:1;height:3px;background:var(--navy-600);border-radius:2px"><div style="width:'+pct+'%;height:100%;border-radius:2px;background:'+cfg.col+'"></div></div>'
@@ -2406,26 +2596,35 @@ function renderCarbon() {
             y:{grid:{display:false},ticks:{color:tc(),font:{size:9},autoSkip:false}}}}});
 
   // ── Tabel faktor emisi ──
-  document.getElementById('carbon-factors').innerHTML = Object.entries(EC_BY_TYPE)
-    .filter(([k])=>k!=='DEFAULT').map(([t,f])=>{
-      const cfg = ECFG[t]||{lbl:t.replace('IFC',''),col:'#3a566e'};
-      return '<div style="background:var(--navy-700);border-radius:8px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px">'
-        +'<div style="display:flex;align-items:center;gap:7px">'
-          +'<div style="width:7px;height:7px;border-radius:50%;background:'+cfg.col+';flex-shrink:0"></div>'
-          +'<span style="font-size:12px;color:var(--white2)">'+cfg.lbl+'</span>'
-        +'</div>'
-        +'<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--gold)">'+f
-          +' <span style="font-size:9px;color:var(--slate3)">kgCO₂e/m³</span></span>'
-        +'</div>';
-    }).join('');
+  // Tampilkan faktor emisi utama per material (bukan per tipe)
+  const KEY_MATS = [
+    ['beton bertulang','Beton Bertulang'],['beton','Beton'],['baja','Baja'],
+    ['baja ringan','Baja Ringan'],['aluminium','Aluminium'],['kaca','Kaca'],
+    ['tempered glass','Kaca Tempered'],['kayu','Kayu'],['plywood','Plywood'],
+    ['bata','Bata'],['bata hebel','Bata Hebel/AAC'],['keramik','Keramik'],
+    ['gypsum board','Gypsum Board'],['granite','Granit'],['pvc','PVC'],
+    ['eps','EPS/Styrofoam'],['cat','Cat/Coating'],['genteng','Genteng'],
+  ];
+  document.getElementById('carbon-factors').innerHTML = KEY_MATS.map(([k,label])=>{
+    const ef      = EC_EF[k]      || EC_EF['default'];
+    const density = EC_DENSITY[k] || EC_DENSITY['default'];
+    const efM3    = Math.round(ef * density);
+    const f = efM3;
+    return '<div style="background:var(--navy-700);border-radius:8px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px">'
+      +'<div style="font-size:12px;color:var(--white2)">'+label+'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--gold)">'+f+' <span style="font-size:9px;color:var(--slate3)">kgCO₂e/m³</span></div>'
+        +'<div style="font-size:9px;color:var(--slate3)">'+density+' kg/m³ × '+ef+' kgCO₂e/kg</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
 
   // ── Estimasi Akurasi ──
   const totalPhysElem = d.storeys.reduce((a,s)=>a+s.totals.cnt, 0);
-  const elemWithVol   = elemRows.length;
-  const elemWithMat   = elemRows.filter(r => {
-    const ml = r.material.toLowerCase();
-    return EC_BY_MATERIAL.some(em => ml.includes(em.k));
-  }).length;
+  const elemWithVol      = elemRows.length;
+  const elemWithVolIFC   = elemRows.filter(r=>r.volSrc==='ifc').length;
+  const elemWithVolCalc  = elemRows.filter(r=>r.volSrc==='calc').length;
+  const elemWithMat   = elemRows.filter(r => r.matSrc === 'IFC material').length;
   const volCovPct = totalPhysElem > 0 ? Math.round(elemWithVol/totalPhysElem*100) : 0;
   const matCovPct = elemWithVol  > 0  ? Math.round(elemWithMat/elemWithVol*100)   : 0;
   const avgCov    = (volCovPct + matCovPct) / 2;
@@ -2437,9 +2636,9 @@ function renderCarbon() {
   else                   { accColor='var(--co)';    accLabel='Sangat Rendah (>±80%)';    accDesc='Volume atau material tidak mencukupi. Hasil tidak dapat diandalkan bahkan untuk estimasi kasar.'; }
 
   const accFactors = [
-    { label:'Coverage Volume',     pct:volCovPct, good:volCovPct>=70, detail:elemWithVol+' dari '+totalPhysElem+' elemen punya GrossVolume/NetVolume > 0' },
+    { label:'Coverage Volume',     pct:volCovPct, good:volCovPct>=70, detail:elemWithVolIFC+' elemen dari IFC langsung · '+elemWithVolCalc+' dari Area×Tebal · total '+elemWithVol+' dari '+totalPhysElem },
     { label:'Coverage Material',   pct:matCovPct, good:matCovPct>=60, detail:elemWithMat+' dari '+elemWithVol+' elemen material-nya teridentifikasi di database' },
-    { label:'Relevansi Database',  pct:55,        good:false,         detail:'ICE v3 adalah database UK. Faktor emisi Indonesia dapat berbeda ±20–40% tergantung material dan produsen lokal.' },
+    { label:'Relevansi Database',  pct:75,        good:false,         detail:'SNI 7188.7:2020 + IEBC 2021 berbasis data Indonesia & Asia Tenggara. Lebih relevan dari ICE v3 (UK), meski variasi per produsen masih ±15–25%.' },
     { label:'Cakupan Tahap LCA',   pct:40,        good:false,         detail:'Hanya A1–A3 (produksi material). Tidak mencakup A4 (transportasi), A5 (konstruksi di site), B (operasional), C (akhir masa pakai).' },
   ];
 
@@ -2468,7 +2667,7 @@ function renderCarbon() {
 
   // ── Tools profesional ──
   const tools = [
-    { name:'One Click LCA', url:'https://www.oneclicklca.com', badge:'Berbayar', badgeCol:'var(--am)',      desc:'Terintegrasi Revit & IFC. Pakai EPD spesifik. Paling komprehensif untuk LCA penuh A1–C4.' },
+    { name:'One Click LCA', url:'https://www.oneclicklca.com', badge:'Berbayar', badgeCol:'var(--am)',      desc:'Terintegrasi Revit & IFC. Pakai EPD spesifik produk. Paling komprehensif untuk LCA penuh A1–C4.' },
     { name:'Tally',         url:'https://choosetally.com',     badge:'Plugin Revit',badgeCol:'var(--tq-300)',desc:'Plugin Revit, mapping langsung ke material model. Berbasis database EPD global.' },
     { name:'EC3',           url:'https://buildingtransparency.org',badge:'Gratis',badgeCol:'var(--green)', desc:'Database EPD verified, gratis. Import dari Revit/IFC. Cocok untuk perbandingan material.' },
     { name:'eTool LCD',     url:'https://etoollcd.com',        badge:'Berbayar', badgeCol:'var(--am)',      desc:'LCA tool dengan data regional Asia-Pacific, lebih relevan untuk konteks Indonesia.' },
@@ -2486,6 +2685,11 @@ function renderCarbon() {
       +'<a href="'+t.url+'" style="font-size:10px;color:var(--tq-300);font-family:JetBrains Mono,monospace;text-decoration:none">'+t.url.replace('https://','')+'</a>'
     +'</div>'
   ).join('');
+
+  } catch(err) {
+    console.error('renderCarbon error:', err);
+    document.getElementById('carbon-note').innerHTML += '<br><strong style="color:var(--co)">Error: ' + err.message + '</strong>';
+  }
 }
 
 // ── CSV Export Carbon ──
@@ -2534,7 +2738,7 @@ function exportCarbonCSV(mode) {
 
   const csv = [
     ['# Embodied Carbon — '+(d.header.buildingName||d.header.projectName||d.header.fileName)],
-    ['# Sumber faktor: ICE Database v3 (Bath University UK)'],
+    ['# Sumber faktor: SNI 7188.7:2020 + IEBC 2021 (Indonesia/Asia Tenggara)'],
     ['# Tanggal: '+new Date().toLocaleDateString('id-ID')],
     [],
     headers,
@@ -3013,7 +3217,7 @@ function renderProps() {
     {l:'Aplikasi',       v:d.header.application},
     {l:'Lokasi',         v:d.header.address},
     {l:'Skema',          v:d.schema},
-    {l:'Satuan Panjang', v:(d.header.lengthUnit||'m')+' → m (×'+d.unitFactor+')'},
+    {l:'Satuan Panjang', v:(d.header.lengthUnit||'m')+' (×'+d.unitFactor+') · Vol: m³ (×'+d.volFactor+') · Area: m² (×'+d.areaFactor+')'},
     {l:'Timestamp',      v:d.header.timeStamp},
     {l:'File',           v:d.header.fileName},
     {l:'Total Entitas',  v:fmti(d.totalEntities)},
