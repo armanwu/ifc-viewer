@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IFC Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// Override Chart.js global defaults for dark theme
+Chart.defaults.color = '#8eaac2';
+Chart.defaults.borderColor = 'rgba(45,190,190,0.08)';
+Chart.defaults.font.family = 'Inter';
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -686,6 +692,15 @@ body {
 .hcard { background: var(--navy-700); border-radius: var(--r); padding: 11px; }
 .hlbl  { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); font-weight: 500; margin-bottom: 4px; }
 .hval  { font-size: 12px; color: var(--white2); font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+
+/* ── Sortable table headers ── */
+.sth { cursor: pointer; user-select: none; white-space: nowrap; }
+.sth:hover { color: var(--white2); }
+.sth.asc .sarr::after  { content: '↑'; }
+.sth.desc .sarr::after { content: '↓'; }
+.sth .sarr { opacity: .35; font-size: 10px; margin-left: 2px; }
+.sth.asc .sarr, .sth.desc .sarr { opacity: 1; color: var(--tq-300); }
+.sth.asc, .sth.desc { color: var(--tq-300); }
 </style>
 </head>
 <body>
@@ -746,6 +761,7 @@ body {
     <button class="tab on" onclick="switchTab(this,'overview')">Ikhtisar</button>
     <button class="tab" onclick="switchTab(this,'qto')">QTO per Lantai</button>
     <button class="tab" onclick="switchTab(this,'ruang')">Luasan Ruang</button>
+    <button class="tab" onclick="switchTab(this,'carbon')">Embodied Carbon</button>
     <button class="tab" onclick="switchTab(this,'bim')">Checklist BIM</button>
     <button class="tab" onclick="switchTab(this,'props')">Properti</button>
   </div>
@@ -758,7 +774,7 @@ body {
     <div class="g21">
       <div class="panel">
         <div class="ph"><span class="pt">Distribusi Elemen</span><span class="ps" id="elem-badge">—</span></div>
-        <div class="cbox" style="height:268px"><canvas id="ch-elem"></canvas></div>
+        <div class="cbox" style="height:320px"><canvas id="ch-elem"></canvas></div>
       </div>
       <div class="panel">
         <div class="ph"><span class="pt">Jumlah per Tipe</span></div>
@@ -770,7 +786,7 @@ body {
     <div class="g2">
       <div class="panel">
         <div class="ph"><span class="pt">Daftar Lantai</span><span class="ps" id="storey-badge">—</span></div>
-        <div class="scroll slist" id="slist"></div>
+        <div class="scroll slist" id="slist" style="max-height:480px"></div>
       </div>
       <div class="panel">
         <div class="ph">
@@ -781,7 +797,7 @@ body {
             <button onclick="toggleStoreyChart('cnt')" id="btn-stor-cnt" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--b2);background:var(--navy-600);color:var(--slate2);cursor:pointer;font-family:inherit">Elemen</button>
           </div>
         </div>
-        <div class="cbox" style="height:280px"><canvas id="ch-stor"></canvas></div>
+        <div class="cbox" id="stor-chart-box" style="height:280px"><canvas id="ch-stor"></canvas></div>
       </div>
     </div>
 
@@ -795,16 +811,17 @@ body {
         <div class="ph">
           <span class="pt">Daftar Material</span>
           <span class="ps" id="mat-list-badge">—</span>
+          <button class="btn-csv" onclick="exportTable('mat')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
         </div>
         <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
           <input class="sinput" id="mat-search" placeholder="Cari material…" oninput="filterMats(this.value)">
         </div>
         <div class="scroll" style="max-height:320px">
           <table class="qtable">
-            <thead><tr>
-              <th style="cursor:default">Material</th>
-              <th style="cursor:default;text-align:right;width:60px">Jml</th>
-              <th style="cursor:default;width:100px">Proporsi</th>
+            <thead id="mat-thead"><tr>
+              <th onclick="sortTable('mat','name')" class="sth" id="sth-mat-name">Material <span class="sarr">↕</span></th>
+              <th onclick="sortTable('mat','count')" class="sth" id="sth-mat-count" style="text-align:right;width:60px">Jml <span class="sarr">↕</span></th>
+              <th style="width:100px;cursor:default">Proporsi</th>
             </tr></thead>
             <tbody id="mat-tbody"></tbody>
           </table>
@@ -848,11 +865,11 @@ body {
       <div style="display:flex;flex-direction:column;gap:13px">
         <div class="panel">
           <div class="ph"><span class="pt">Volume Bruto (m³)</span></div>
-          <div class="cbox" style="height:208px"><canvas id="ch-qvol"></canvas></div>
+          <div class="cbox" id="qvol-chart-box" style="height:208px"><canvas id="ch-qvol"></canvas></div>
         </div>
         <div class="panel">
           <div class="ph"><span class="pt">Volume per Tipe per Lantai</span></div>
-          <div class="cbox" style="height:208px"><canvas id="ch-qarea"></canvas></div>
+          <div class="cbox" id="qarea-chart-box" style="height:208px"><canvas id="ch-qarea"></canvas></div>
         </div>
       </div>
     </div>
@@ -875,6 +892,7 @@ body {
         <div class="ph">
           <span class="pt">Daftar Ruang</span>
           <span class="ps" id="ruang-badge">—</span>
+          <button class="btn-csv" onclick="exportTable('ruang')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
         </div>
         <div style="display:flex;gap:8px;padding:9px 13px;border-bottom:1px solid var(--b);flex-wrap:wrap">
           <input class="sinput" id="ruang-search" placeholder="Cari nama ruang…" oninput="filterRuang()" style="flex:2;min-width:140px">
@@ -889,13 +907,13 @@ body {
         </div>
         <div class="scroll" style="max-height:460px">
           <table class="qtable">
-            <thead><tr>
-              <th style="cursor:default">Nama Ruang</th>
-              <th style="cursor:default">Lantai</th>
-              <th style="cursor:default;text-align:right">Luas Neto (m²)</th>
-              <th style="cursor:default;text-align:right">Luas Bruto (m²)</th>
-              <th style="cursor:default;text-align:right">Tinggi (m)</th>
-              <th style="cursor:default;text-align:right">Volume (m³)</th>
+            <thead id="ruang-thead"><tr>
+              <th onclick="sortTable('ruang','name')" class="sth" id="sth-ruang-name">Nama Ruang <span class="sarr">↕</span></th>
+              <th onclick="sortTable('ruang','storey')" class="sth" id="sth-ruang-storey">Lantai <span class="sarr">↕</span></th>
+              <th onclick="sortTable('ruang','net')" class="sth" id="sth-ruang-net" style="text-align:right">Luas Neto (m²) <span class="sarr">↕</span></th>
+              <th onclick="sortTable('ruang','gross')" class="sth" id="sth-ruang-gross" style="text-align:right">Luas Bruto (m²) <span class="sarr">↕</span></th>
+              <th onclick="sortTable('ruang','height')" class="sth" id="sth-ruang-height" style="text-align:right">Tinggi (m) <span class="sarr">↕</span></th>
+              <th onclick="sortTable('ruang','vol')" class="sth" id="sth-ruang-vol" style="text-align:right">Volume (m³) <span class="sarr">↕</span></th>
               <th style="cursor:default">Fungsi</th>
             </tr></thead>
             <tbody id="ruang-tbody"></tbody>
@@ -917,21 +935,161 @@ body {
 
     <!-- Rekap per lantai -->
     <div class="panel">
-      <div class="ph"><span class="pt">Rekap per Lantai</span></div>
+      <div class="ph"><span class="pt">Rekap per Lantai</span><button class="btn-csv" onclick="exportTable('rekap')" style="font-size:11px;padding:4px 10px">↓ CSV</button></div>
       <div class="scroll" style="max-height:280px">
         <table class="qtable">
-          <thead><tr>
-            <th style="cursor:default">Lantai</th>
-            <th style="cursor:default;text-align:right">Jumlah Ruang</th>
-            <th style="cursor:default;text-align:right">Total Luas Neto (m²)</th>
-            <th style="cursor:default;text-align:right">Total Luas Bruto (m²)</th>
-            <th style="cursor:default;text-align:right">Total Volume (m³)</th>
+          <thead id="rekap-thead"><tr>
+            <th onclick="sortTable('rekap','name')" class="sth" id="sth-rekap-name">Lantai <span class="sarr">↕</span></th>
+            <th onclick="sortTable('rekap','cnt')" class="sth" id="sth-rekap-cnt" style="text-align:right">Jumlah Ruang <span class="sarr">↕</span></th>
+            <th onclick="sortTable('rekap','net')" class="sth" id="sth-rekap-net" style="text-align:right">Total Luas Neto (m²) <span class="sarr">↕</span></th>
+            <th onclick="sortTable('rekap','gross')" class="sth" id="sth-rekap-gross" style="text-align:right">Total Luas Bruto (m²) <span class="sarr">↕</span></th>
+            <th onclick="sortTable('rekap','vol')" class="sth" id="sth-rekap-vol" style="text-align:right">Total Volume (m³) <span class="sarr">↕</span></th>
             <th style="cursor:default">Ruang Terbesar</th>
           </tr></thead>
           <tbody id="ruang-rekap-tbody"></tbody>
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- ═ EMBODIED CARBON ═ -->
+  <div class="pane" id="pane-carbon">
+
+    <!-- Disclaimer bar -->
+    <div style="background:rgba(240,96,96,0.08);border:1px solid rgba(240,96,96,0.25);border-radius:10px;padding:13px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:flex-start">
+      <div style="font-size:20px;flex-shrink:0;line-height:1.2">⚠️</div>
+      <div style="font-size:12px;color:var(--slate);line-height:1.7">
+        <strong style="color:var(--co);font-size:13px">DISCLAIMER — Bukan Perhitungan Profesional</strong><br>
+        Hasil ini adalah <strong>estimasi kasar untuk keperluan skrining awal</strong>, bukan perhitungan yang dapat dipertanggungjawabkan secara profesional.
+        <strong>Jangan gunakan</strong> untuk: klaim kepada klien/regulator, submission green building rating (GBCI, LEED, EDGE), atau keputusan desain final.<br>
+        Untuk perhitungan resmi, gunakan tools berbasis EPD: <strong>One Click LCA</strong>, <strong>Tally</strong> (plugin Revit), atau <strong>EC3</strong> (Building Transparency).
+      </div>
+    </div>
+
+    <!-- Info note -->
+    <div class="note" id="carbon-note">
+      <strong>Cara hitung:</strong>
+      <code style="font-size:11px;background:rgba(0,181,181,.15);padding:1px 5px;border-radius:3px">Volume (m³) × Faktor Emisi (kgCO₂e/m³) ÷ 1000 = tCO₂e</code>
+      · Faktor dari <strong>ICE Database v3</strong> (Bath University, UK) — dicocokkan per material, fallback per tipe elemen.
+      Cakupan: <strong>A1–A3</strong> (produksi material) saja. Tidak mencakup transportasi (A4), konstruksi (A5), operasional (B), atau akhir masa pakai (C).
+    </div>
+
+    <!-- KPI strip -->
+    <div class="qsum" id="carbon-kpi" style="margin-bottom:14px"></div>
+
+    <!-- Panel penilaian -->
+    <div id="carbon-verdict" style="margin-bottom:14px;border-radius:12px;overflow:hidden;border:1px solid var(--b)"></div>
+
+    <!-- Tiga panel breakdown -->
+    <div class="g3" style="margin-bottom:14px">
+
+      <!-- Per Tipe Elemen -->
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Per Tipe Elemen</span>
+          <button class="btn-csv" onclick="exportCarbonCSV('type')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
+        </div>
+        <div class="scroll" style="max-height:420px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Tipe</th>
+              <th style="cursor:default;text-align:right">Vol (m³)</th>
+              <th style="cursor:default;text-align:right">kgCO₂e/m³</th>
+              <th style="cursor:default;text-align:right">Total (tCO₂e)</th>
+              <th style="cursor:default">%</th>
+            </tr></thead>
+            <tbody id="carbon-type-tbody"></tbody>
+            <tfoot id="carbon-type-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Per Material -->
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Per Material</span>
+          <button class="btn-csv" onclick="exportCarbonCSV('mat')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
+        </div>
+        <div class="scroll" style="max-height:420px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Material</th>
+              <th style="cursor:default;text-align:right">Elemen</th>
+              <th style="cursor:default;text-align:right">kgCO₂e/m³</th>
+              <th style="cursor:default;text-align:right">Total (tCO₂e)</th>
+              <th style="cursor:default">%</th>
+            </tr></thead>
+            <tbody id="carbon-mat-tbody"></tbody>
+            <tfoot id="carbon-mat-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Per Lantai -->
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Per Lantai</span>
+          <button class="btn-csv" onclick="exportCarbonCSV('storey')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
+        </div>
+        <div class="scroll" style="max-height:420px">
+          <table class="qtable">
+            <thead><tr>
+              <th style="cursor:default">Lantai</th>
+              <th style="cursor:default;text-align:right">Vol (m³)</th>
+              <th style="cursor:default;text-align:right">Total (tCO₂e)</th>
+              <th style="cursor:default">%</th>
+            </tr></thead>
+            <tbody id="carbon-storey-tbody"></tbody>
+            <tfoot id="carbon-storey-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="pt">Distribusi per Tipe Elemen</span></div>
+        <div class="cbox" style="height:280px"><canvas id="ch-carbon-type"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Embodied Carbon per Lantai (tCO₂e)</span></div>
+        <div class="cbox" id="carbon-storey-box" style="height:280px"><canvas id="ch-carbon-storey"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Faktor emisi + akurasi + tools -->
+    <div class="g2" style="margin-top:14px">
+
+      <!-- Faktor emisi -->
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Faktor Emisi yang Digunakan</span>
+          <span class="ps">ICE Database v3 · A1–A3</span>
+        </div>
+        <div class="pb" id="carbon-factors" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px"></div>
+      </div>
+
+      <!-- Estimasi akurasi + tools -->
+      <div style="display:flex;flex-direction:column;gap:13px">
+
+        <!-- Akurasi estimasi -->
+        <div class="panel">
+          <div class="ph"><span class="pt">Estimasi Akurasi Penilaian</span></div>
+          <div class="pb" style="padding:14px">
+            <div id="carbon-accuracy"></div>
+          </div>
+        </div>
+
+        <!-- Tools alternatif -->
+        <div class="panel">
+          <div class="ph"><span class="pt">Tools Profesional yang Direkomendasikan</span></div>
+          <div class="pb" style="padding:14px;display:flex;flex-direction:column;gap:10px" id="carbon-tools"></div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   <!-- ═ BIM ═ -->
@@ -984,14 +1142,14 @@ body {
       </div>
       <div class="scroll" style="max-height:340px">
         <table class="qtable">
-          <thead><tr>
-            <th style="cursor:default">#ID</th>
-            <th style="cursor:default">Tipe</th>
-            <th style="cursor:default">Nama Elemen</th>
-            <th style="cursor:default">Lantai</th>
-            <th style="cursor:default;text-align:right">Vol.Bruto (m³)</th>
-            <th style="cursor:default;text-align:right">Luas (m²)</th>
-            <th style="cursor:default">Material</th>
+          <thead id="elem-thead"><tr>
+            <th style="cursor:default;width:52px">#ID</th>
+            <th onclick="sortTable('elem','type')" class="sth" id="sth-elem-type">Tipe <span class="sarr">↕</span></th>
+            <th onclick="sortTable('elem','name')" class="sth" id="sth-elem-name">Nama Elemen <span class="sarr">↕</span></th>
+            <th onclick="sortTable('elem','storey')" class="sth" id="sth-elem-storey">Lantai <span class="sarr">↕</span></th>
+            <th onclick="sortTable('elem','vol')" class="sth" id="sth-elem-vol" style="text-align:right">Vol.Bruto (m³) <span class="sarr">↕</span></th>
+            <th onclick="sortTable('elem','area')" class="sth" id="sth-elem-area" style="text-align:right">Luas (m²) <span class="sarr">↕</span></th>
+            <th onclick="sortTable('elem','mat')" class="sth" id="sth-elem-mat">Material <span class="sarr">↕</span></th>
           </tr></thead>
           <tbody id="elem-tbody"></tbody>
         </table>
@@ -1004,18 +1162,19 @@ body {
         <div class="ph">
           <span class="pt">Properti Set (Pset)</span>
           <span class="ps" id="pset-badge">—</span>
+          <button class="btn-csv" onclick="exportTable('pset')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
         </div>
         <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
           <input class="sinput" id="pset-search" placeholder="Cari nama properti atau nilai…" oninput="filterPsets(this.value)">
         </div>
         <div class="scroll" style="max-height:360px">
           <table class="qtable">
-            <thead><tr>
-              <th style="cursor:default">Properti</th>
-              <th style="cursor:default">Tipe Elemen</th>
-              <th style="cursor:default">Nilai</th>
-              <th style="cursor:default">Pset</th>
-              <th style="cursor:default;text-align:right">n</th>
+            <thead id="pset-thead"><tr>
+              <th onclick="sortTable('pset','name')" class="sth" id="sth-pset-name">Properti <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','type')" class="sth" id="sth-pset-type">Tipe Elemen <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','vals')" class="sth" id="sth-pset-vals">Nilai <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','pset')" class="sth" id="sth-pset-pset">Pset <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','count')" class="sth" id="sth-pset-count" style="text-align:right">n <span class="sarr">↕</span></th>
             </tr></thead>
             <tbody id="pset-tbody"></tbody>
           </table>
@@ -1073,9 +1232,9 @@ const esc  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repla
 const r4   = v => Math.round(v * 10000) / 10000;
 const fmt  = (v,d=2) => v != null ? Number(v).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
 const fmti = v => v != null ? Number(v).toLocaleString('id-ID') : '—';
-const gc   = () => 'rgba(45,190,190,0.06)';
-const tc   = () => '#3a566e';
-const tt   = () => ({backgroundColor:'#0d1b2f',titleColor:'#c4d4e6',bodyColor:'#5d7d99',borderColor:'rgba(45,190,190,0.2)',borderWidth:1});
+const gc   = () => lightMode ? 'rgba(0,0,0,0.06)' : 'rgba(45,190,190,0.06)';
+const tc   = () => lightMode ? '#374e65' : '#8eaac2';
+const tt   = () => lightMode ? ({backgroundColor:'#ffffff',titleColor:'#0f1923',bodyColor:'#374e65',borderColor:'rgba(0,0,0,0.12)',borderWidth:1}) : ({backgroundColor:'#0d1b2f',titleColor:'#c4d4e6',bodyColor:'#8eaac2',borderColor:'rgba(45,190,190,0.2)',borderWidth:1});
 
 function mkChart(id, cfg) {
   if (CHARTS[id]) CHARTS[id].destroy();
@@ -1122,6 +1281,16 @@ function toggleTheme() {
      '--white','--white2','--white3','--slate','--slate2','--slate3','--slate4',
      '--b','--b2','--b3','--tq-500','--tq-400','--tq-300'].forEach(v => r.removeProperty(v));
     document.getElementById('theme-icon').textContent = '☀';
+  }
+  // Update Chart.js global defaults for new theme
+  Chart.defaults.color = lightMode ? '#374e65' : '#8eaac2';
+  Chart.defaults.borderColor = lightMode ? 'rgba(0,0,0,0.08)' : 'rgba(45,190,190,0.08)';
+  // Re-render semua chart agar warna legend/grid ikut berubah
+  if (DATA) {
+    renderOverview();
+    renderQCharts();
+    renderRuangCharts(DATA.spaces || []);
+    if (window._STOR_MODE) buildStoreyChart(window._STOR_MODE);
   }
 }
 
@@ -1514,7 +1683,34 @@ function parseIFC(text, onProgress) {
   const allElemTypes = {};
   const allMaterials = {};
 
-  const sortedStoreys = Object.values(storeys).sort((a,b) => a.elevM - b.elevM);
+  // ── Storey sort: elevation first, name-based fallback when elevations identical
+  function storeyNameOrder(name) {
+    const n = (name || '').toUpperCase();
+    const bm = n.match(/B(\d+)|BASEMENT\s*(\d*)/);
+    if (bm) return -(parseInt(bm[1] || bm[2] || '1'));
+    if (/GROUND|\bGF\b|DASAR|FOUNDATION/.test(n)) return 0;
+    if (/ROOF|\bATAP\b|\bTOP\b/.test(n)) return 9999;
+    if (/CEILING/.test(n)) return 9998;
+    const nums = n.match(/\d+/g);
+    if (nums) return parseInt(nums[nums.length - 1]);
+    const lm = n.match(/^L(\d+)|(\d+)F$/);
+    if (lm) return parseInt(lm[1] || lm[2]);
+    return 5000;
+  }
+
+  const allElev = Object.values(storeys).map(s => s.elevM);
+  const allSameElev = allElev.length > 1 && allElev.every(e => e === allElev[0]);
+
+  const sortedStoreys = Object.values(storeys).sort((a, b) => {
+    if (allSameElev) {
+      // All elevations identical (common when elevation not exported) — sort by name
+      return storeyNameOrder(a.name) - storeyNameOrder(b.name);
+    }
+    // Primary: elevation
+    if (a.elevM !== b.elevM) return a.elevM - b.elevM;
+    // Tiebreak: name-based order
+    return storeyNameOrder(a.name) - storeyNameOrder(b.name);
+  });
 
   for (const s of sortedStoreys) {
     for (const eid of (storeyElems[s.id] || [])) {
@@ -1646,11 +1842,20 @@ function renderOverview() {
     </div>`;
   }).join('');
 
+  const elemLegendPos = ets.length > 8 ? 'bottom' : 'right';
   mkChart('ch-elem',{type:'doughnut',data:{
     labels:ets.map(([t])=>(ECFG[t]||{lbl:t.replace('IFC','')}).lbl),
     datasets:[{data:ets.map(([,v])=>v),backgroundColor:ets.map(([t])=>(ECFG[t]||{col:'#3a566e'}).col),borderWidth:0,hoverOffset:6}]
-  },options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
-    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:11,family:'Inter'},boxWidth:9,padding:8}},tooltip:tt()}}});
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+    layout:{padding:{top:8, bottom: elemLegendPos==='bottom'?16:0}},
+    plugins:{
+      legend:{
+        position: elemLegendPos,
+        labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:10,
+                usePointStyle:true,pointStyleWidth:8}
+      },
+      tooltip:tt()
+    }}});
 
   // Storeys
   document.getElementById('storey-badge').textContent = d.storeys.length+' level';
@@ -1688,7 +1893,7 @@ function renderOverview() {
     labels:chartLabels,
     datasets:[{data:chartData,backgroundColor:chartCols,borderWidth:0,hoverOffset:5}]
   },options:{responsive:true,maintainAspectRatio:false,cutout:'52%',
-    plugins:{legend:{position:'right',labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:6}},tooltip:tt()}}});
+    plugins:{legend:{position:'right',labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:6}},tooltip:tt()}}});
 }
 
 
@@ -1774,6 +1979,7 @@ function filterRuang() {
     if (sortBy === 'storey') return a.storeyName.localeCompare(b.storeyName);
     return b.NetFloorArea - a.NetFloorArea;
   });
+  rows = applyRuangSort(rows);
 
   document.getElementById('ruang-badge').textContent = rows.length + ' ruang';
 
@@ -1816,6 +2022,10 @@ function renderRuangCharts(spaces) {
     return (ia===-1?999:ia) - (ib===-1?999:ib);
   });
 
+  const ruangStorH = Math.min(500, Math.max(180, storeyEntries.length * 28 + 40));
+  const ruangStorBox = document.getElementById('ch-ruang-storey')?.parentElement;
+  if (ruangStorBox) ruangStorBox.style.height = ruangStorH + 'px';
+
   mkChart('ch-ruang-storey', {type:'bar', data:{
     labels: storeyEntries.map(([n]) => n.length>14 ? n.slice(0,13)+'…' : n),
     datasets:[{
@@ -1849,7 +2059,7 @@ function renderRuangCharts(spaces) {
     }]
   }, options:{responsive:true, maintainAspectRatio:false, cutout:'55%',
     plugins:{
-      legend:{position:'right', labels:{color:'#5d7d99', font:{size:11,family:'Inter'}, boxWidth:9, padding:8}},
+      legend:{position:'right', labels:{color:tc(), font:{size:11,family:'Inter'}, boxWidth:9, padding:8}},
       tooltip:tt()
     }}});
 }
@@ -1867,10 +2077,11 @@ function renderRuangRekap(spaces) {
   });
 
   const storeyOrder = DATA.storeys.map(s => s.name);
-  const entries = Object.entries(storeyMap).sort((a,b) => {
+  let entries = Object.entries(storeyMap).sort((a,b) => {
     const ia = storeyOrder.indexOf(a[0]), ib = storeyOrder.indexOf(b[0]);
     return (ia===-1?999:ia) - (ib===-1?999:ib);
   });
+  entries = applyRekapSort(entries);
 
   document.getElementById('ruang-rekap-tbody').innerHTML = entries.map(([name, st]) => {
     const biggest = st.rooms.reduce((a,b)=>b.NetFloorArea>a.NetFloorArea?b:a, st.rooms[0]);
@@ -1885,6 +2096,457 @@ function renderRuangRekap(spaces) {
   }).join('') || '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--slate3)">—</td></tr>';
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// EMBODIED CARBON
+// Faktor emisi: ICE Database v3 (Bath UK) kgCO₂e per m³
+// ═══════════════════════════════════════════════════════════
+
+// ── Faktor per tipe elemen (kgCO₂e/m³) ──
+const EC_BY_TYPE = {
+  IFCWALL:                250,   // Dinding rata-rata (beton+bata+finishing)
+  IFCWALLSTANDARDCASE:    250,
+  IFCSLAB:                300,   // Pelat beton bertulang
+  IFCCOLUMN:              400,   // Kolom beton bertulang (lebih padat)
+  IFCBEAM:                400,   // Balok beton bertulang
+  IFCMEMBER:              1200,  // Profil baja struktural (ICE: ~1.37 kgCO₂e/kg, ~7850 kg/m³ → ~10.750, dibagi faktor utilitas)
+  IFCPLATE:               1200,  // Pelat baja
+  IFCROOF:                200,   // Atap (campuran material)
+  IFCFOOTING:             320,   // Pondasi beton
+  IFCCURTAINWALL:         180,   // Curtain wall (kaca+aluminium, volume frame)
+  IFCWINDOW:              350,   // Jendela (kaca+frame)
+  IFCDOOR:                200,   // Pintu (kayu/besi)
+  IFCSTAIR:               300,   // Tangga beton
+  IFCSTAIRFLIGHT:         300,
+  IFCRAILING:             800,   // Railing baja
+  IFCCOVERING:            120,   // Penutup/finishing
+  IFCFURNITURE:            80,   // Furnitur (kayu, rendah)
+  IFCBUILDINGELEMENTPROXY: 200,  // Proxy (asumsi beton)
+  DEFAULT:                200,
+};
+
+// ── Faktor per kata kunci material (kgCO₂e/m³) ──
+const EC_BY_MATERIAL = [
+  // keyword (lowercase) → faktor, label, sumber
+  { k:'concrete',      f:  270, lbl:'Beton',            src:'ICE v3: 0.103 kgCO₂e/kg × 2600 kg/m³' },
+  { k:'beton',         f:  270, lbl:'Beton',            src:'ICE v3' },
+  { k:'reinforced',    f:  310, lbl:'Beton Bertulang',  src:'ICE v3 + besi tulangan' },
+  { k:'bertulang',     f:  310, lbl:'Beton Bertulang',  src:'ICE v3 + besi tulangan' },
+  { k:'steel',         f: 1180, lbl:'Baja',             src:'ICE v3: 1.37 kgCO₂e/kg × 7850 kg/m³ (recycled mix)' },
+  { k:'baja',          f: 1180, lbl:'Baja',             src:'ICE v3' },
+  { k:'alumin',        f: 4200, lbl:'Aluminium',        src:'ICE v3: 6.7 kgCO₂e/kg × 2700 kg/m³ (50% recycled)' },
+  { k:'glass',         f:  300, lbl:'Kaca',             src:'ICE v3: 1.35 kgCO₂e/kg × 2500 kg/m³' },
+  { k:'kaca',          f:  300, lbl:'Kaca',             src:'ICE v3' },
+  { k:'timber',        f:  130, lbl:'Kayu',             src:'ICE v3: 0.31 kgCO₂e/kg × 500 kg/m³' },
+  { k:'kayu',          f:  130, lbl:'Kayu',             src:'ICE v3' },
+  { k:'wood',          f:  130, lbl:'Kayu',             src:'ICE v3' },
+  { k:'brick',         f:  330, lbl:'Bata',             src:'ICE v3: 0.24 kgCO₂e/kg × 1800 kg/m³' },
+  { k:'bata',          f:  330, lbl:'Bata',             src:'ICE v3' },
+  { k:'gypsum',        f:  130, lbl:'Gypsum',           src:'ICE v3: 0.12 kgCO₂e/kg × 900 kg/m³' },
+  { k:'gyp',           f:  130, lbl:'Gypsum',           src:'ICE v3' },
+  { k:'plaster',       f:  130, lbl:'Plesteran',        src:'ICE v3' },
+  { k:'insul',         f:   80, lbl:'Insulasi',         src:'ICE v3 EPS/mineral wool avg' },
+  { k:'ceramic',       f:  360, lbl:'Keramik',          src:'ICE v3: 0.1 kgCO₂e/kg × 2300 kg/m³' },
+  { k:'keramik',       f:  360, lbl:'Keramik',          src:'ICE v3' },
+  { k:'granite',       f:  280, lbl:'Granit',           src:'ICE v3' },
+  { k:'granit',        f:  280, lbl:'Granit',           src:'ICE v3' },
+  { k:'stone',         f:  220, lbl:'Batu',             src:'ICE v3' },
+  { k:'batu',          f:  220, lbl:'Batu',             src:'ICE v3' },
+  { k:'paint',         f:   60, lbl:'Cat',              src:'ICE v3' },
+  { k:'cat',           f:   60, lbl:'Cat',              src:'ICE v3' },
+  { k:'copper',        f: 3100, lbl:'Tembaga',          src:'ICE v3' },
+  { k:'zinc',          f: 2900, lbl:'Seng',             src:'ICE v3' },
+  { k:'iron',          f:  990, lbl:'Besi',             src:'ICE v3' },
+  { k:'besi',          f:  990, lbl:'Besi',             src:'ICE v3' },
+];
+
+function getECFactor(type, material) {
+  // Coba dari material dulu (lebih spesifik)
+  if (material) {
+    const ml = material.toLowerCase();
+    for (const em of EC_BY_MATERIAL) {
+      if (ml.includes(em.k)) return {f: em.f, src: em.src, lbl: em.lbl};
+    }
+  }
+  // Fallback ke tipe elemen
+  const f = EC_BY_TYPE[type] || EC_BY_TYPE.DEFAULT;
+  return {f, src: 'Estimasi per tipe elemen', lbl: (ECFG[type]||{lbl:type.replace('IFC','')}).lbl};
+}
+
+function renderCarbon() {
+  const d = DATA;
+  // Kumpulkan semua elemen dengan volume
+  const elemRows = [];
+  for (const s of d.storeys) {
+    for (const e of s.elements) {
+      const vol = e.GrossVolume || e.NetVolume || 0;
+      if (vol <= 0) continue;
+      const ec = getECFactor(e.type, e.material);
+      const kgco2 = round4(vol * ec.f);
+      elemRows.push({
+        type: e.type, name: e.name, material: e.material||'',
+        vol, ecFactor: ec.f, kgco2,
+        tco2: round4(kgco2 / 1000),
+        storey: s.name, storeyId: s.id,
+      });
+    }
+  }
+
+  const totalTco2 = round4(elemRows.reduce((a,r)=>a+r.tco2, 0));
+  const totalVol  = round4(elemRows.reduce((a,r)=>a+r.vol,  0));
+  const totalElem = elemRows.length;
+  const intensity = totalVol > 0 ? round4(totalTco2 * 1000 / totalVol) : 0; // kgCO2/m³
+
+  // KPI
+  const floorArea = round4(d.storeys.reduce((a,s)=>a+s.totals.GrossArea,0));
+  const perM2 = floorArea > 0 ? round4(totalTco2*1000/floorArea) : 0;
+  // ── PENILAIAN ──
+  // Benchmark: RIBA 2030 Climate Challenge (kgCO₂e/m² GFA, embodied only)
+  // Residential:  <400 good, <500 average, <700 high, >700 very high
+  // Commercial:   <350 good, <500 average, <750 high, >750 very high
+  // Gunakan benchmark mixed/office sebagai default
+  // Sumber: IStructE 2020, LETI 2020, RIBA 2030
+  function getVerdict(kgPerM2) {
+    if (kgPerM2 <= 0)   return null;
+    if (kgPerM2 < 300)  return {level:1, label:'Sangat Rendah',  desc:'Di bawah target RIBA 2030 (<300 kgCO₂e/m²). Kinerja karbon sangat baik.', color:'#2ec98a', bg:'rgba(46,201,138,0.08)', border:'rgba(46,201,138,0.25)', icon:'🌿'};
+    if (kgPerM2 < 500)  return {level:2, label:'Rendah',         desc:'Memenuhi target aspirasional RIBA 2030 (300–500 kgCO₂e/m²). Kinerja karbon baik.', color:'#27cfc0', bg:'rgba(39,207,192,0.08)', border:'rgba(39,207,192,0.25)', icon:'✓'};
+    if (kgPerM2 < 750)  return {level:3, label:'Sedang',         desc:'Rentang rata-rata industri (500–750 kgCO₂e/m²). Masih ada ruang perbaikan.', color:'#f5b840', bg:'rgba(245,184,64,0.08)', border:'rgba(245,184,64,0.25)', icon:'◑'};
+    if (kgPerM2 < 1000) return {level:4, label:'Tinggi',         desc:'Di atas rata-rata (750–1000 kgCO₂e/m²). Pertimbangkan material rendah karbon.', color:'#fb923c', bg:'rgba(251,146,60,0.08)', border:'rgba(251,146,60,0.25)', icon:'⚠'};
+    return               {level:5, label:'Sangat Tinggi',        desc:'Jauh di atas benchmark (>1000 kgCO₂e/m²). Perlu evaluasi material dan struktur secara menyeluruh.', color:'#f06060', bg:'rgba(240,96,96,0.08)', border:'rgba(240,96,96,0.25)', icon:'⛔'};
+  }
+
+  const verdict = getVerdict(perM2);
+  const verdictEl = document.getElementById('carbon-verdict');
+  if (verdict && verdictEl) {
+    const levels = [
+      {label:'Sangat Rendah', max:300},
+      {label:'Rendah',        max:500},
+      {label:'Sedang',        max:750},
+      {label:'Tinggi',        max:1000},
+      {label:'Sangat Tinggi', max:Infinity},
+    ];
+    const barMax = Math.max(perM2 * 1.3, 1200);
+    const benchmarks = [
+      {val:300,  label:'Target 2030',  color:'rgba(46,201,138,0.7)'},
+      {val:500,  label:'Aspirasional', color:'rgba(39,207,192,0.7)'},
+      {val:750,  label:'Rata-rata',    color:'rgba(245,184,64,0.7)'},
+      {val:1000, label:'Tinggi',       color:'rgba(251,146,60,0.7)'},
+    ];
+
+    verdictEl.style.cssText = 'background:'+verdict.bg+';border-color:'+verdict.border;
+    verdictEl.innerHTML =
+      '<div style="padding:18px 20px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">'
+        // Icon + label + desc
+        +'<div style="display:flex;align-items:flex-start;gap:14px;flex:1;min-width:260px">'
+          +'<div style="font-size:32px;line-height:1;flex-shrink:0">'+verdict.icon+'</div>'
+          +'<div>'
+            +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:'+verdict.color+';font-weight:700;margin-bottom:4px">Penilaian Embodied Carbon</div>'
+            +'<div style="font-size:22px;font-weight:700;color:'+verdict.color+';letter-spacing:-.4px;margin-bottom:6px">'+verdict.label+'</div>'
+            +'<div style="font-size:13px;color:var(--slate);line-height:1.6">'+verdict.desc+'</div>'
+            +'<div style="font-size:12px;color:var(--slate2);margin-top:8px">'
+              +'Intensitas: <strong style="color:'+verdict.color+'">'+fmt(perM2,1)+' kgCO₂e/m²</strong>'
+              +' · Total: <strong style="color:var(--gold)">'+fmt(totalTco2,1)+' tCO₂e</strong>'
+              +' · Luas: <strong style="color:var(--tq-300)">'+fmt(floorArea,0)+' m²</strong>'
+            +'</div>'
+          +'</div>'
+        +'</div>'
+        // Scale bar
+        +'<div style="flex:1;min-width:240px;padding-top:4px">'
+          +'<div style="font-size:10px;color:var(--slate3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;font-weight:600">Skala Benchmark (kgCO₂e/m²)</div>'
+          +'<div style="position:relative;height:20px;background:var(--navy-700);border-radius:10px;overflow:visible;margin-bottom:24px">'
+            // Gradient bar background
+            +'<div style="position:absolute;inset:0;border-radius:10px;background:linear-gradient(to right,#2ec98a,#27cfc0,#f5b840,#fb923c,#f06060)"></div>'
+            // Benchmark lines
+            +benchmarks.map(b=>{
+              const pct = Math.min(b.val/barMax*100, 100);
+              return '<div style="position:absolute;top:-2px;bottom:-2px;left:'+pct+'%;width:1.5px;background:rgba(255,255,255,0.4)"></div>'
+                +'<div style="position:absolute;top:24px;left:'+pct+'%;transform:translateX(-50%);font-size:9px;color:var(--slate3);white-space:nowrap">'+b.val+'</div>';
+            }).join('')
+            // Current position marker
+            +'<div style="position:absolute;top:-4px;bottom:-4px;left:'+Math.min(perM2/barMax*100,100)+'%;width:3px;background:white;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 6px rgba(255,255,255,0.6)"></div>'
+            +'<div style="position:absolute;top:-22px;left:'+Math.min(perM2/barMax*100,100)+'%;transform:translateX(-50%);font-size:10px;font-weight:700;color:white;background:'+verdict.color+';padding:1px 6px;border-radius:4px;white-space:nowrap">'+fmt(perM2,0)+'</div>'
+          +'</div>'
+          // Level labels
+          +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'
+            +levels.map((l,i)=>{
+              const cols=['#2ec98a','#27cfc0','#f5b840','#fb923c','#f06060'];
+              const active = verdict.level === i+1;
+              return '<div style="font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid '+(active?cols[i]:'var(--b2)')+';background:'+(active?'rgba('+[
+                '46,201,138','39,207,192','245,184,64','251,146,60','240,96,96'][i]+',0.15)':'transparent')
+                +';color:'+(active?cols[i]:'var(--slate3)')+';font-weight:'+(active?'700':'400')+'">'+l.label+'</div>';
+            }).join('')
+          +'</div>'
+          +'<div style="font-size:10px;color:var(--slate3);margin-top:8px">Sumber: RIBA 2030 Climate Challenge · IStructE 2020 · LETI 2020</div>'
+        +'</div>'
+      +'</div>';
+  } else if (verdictEl) {
+    verdictEl.innerHTML = '';
+  }
+
+  document.getElementById('carbon-kpi').innerHTML = [
+    {cls:'c-tq',   lbl:'Total Embodied Carbon', val: fmt(totalTco2,1),   unit:'tCO₂e'},
+    {cls:'c-gold', lbl:'Per m² Luas Lantai',    val: fmt(perM2,1),       unit:'kgCO₂e/m²'},
+    {cls:'c-sage', lbl:'Intensitas Volume',      val: fmt(intensity,1),   unit:'kgCO₂e/m³'},
+    {cls:'c-lil',  lbl:'Volume Dihitung',        val: fmt(totalVol,1),    unit:'m³ ('+totalElem+' elemen)'},
+    {cls:'c-rose', lbl:'Elemen Tanpa Volume',    val: fmti(d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.NetVolume===0).length,0)), unit:'tidak dihitung'},
+    {cls:'c-teal', lbl:'Sumber Faktor',          val: 'ICE v3',           unit:'Bath University UK'},
+  ].map(k=>'<div class="qsc '+k.cls+'"><div class="qsc-lbl">'+k.lbl+'</div><div class="qsc-val">'+k.val+'</div><div class="qsc-unit">'+k.unit+'</div></div>').join('');
+
+  // ── Per Tipe Elemen ──
+  const byType = {};
+  for (const r of elemRows) {
+    if (!byType[r.type]) byType[r.type] = {type:r.type, vol:0, tco2:0, cnt:0, factor: r.ecFactor};
+    byType[r.type].vol  += r.vol;
+    byType[r.type].tco2 += r.tco2;
+    byType[r.type].cnt  += 1;
+  }
+  const typeRows = Object.values(byType).sort((a,b)=>b.tco2-a.tco2);
+  typeRows.forEach(r=>{r.vol=round4(r.vol);r.tco2=round4(r.tco2);});
+  const totTypeTco2 = round4(typeRows.reduce((a,r)=>a+r.tco2,0));
+
+  document.getElementById('carbon-type-tbody').innerHTML = typeRows.map(r=>{
+    const cfg = ECFG[r.type]||{lbl:r.type.replace('IFC',''),col:'#3a566e'};
+    const pct = totTypeTco2>0 ? Math.round(r.tco2/totTypeTco2*100) : 0;
+    return '<tr>'
+      +'<td><div class="tcell"><div class="tdot" style="background:'+cfg.col+'"></div><div class="tname">'+cfg.lbl+'</div></div></td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tq-300)">'+fmt(r.vol,1)+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--slate2)">'+r.factor+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--gold);font-weight:600">'+fmt(r.tco2,2)+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px">'
+        +'<div style="flex:1;height:3px;background:var(--navy-600);border-radius:2px"><div style="width:'+pct+'%;height:100%;border-radius:2px;background:'+cfg.col+'"></div></div>'
+        +'<span style="font-size:10px;color:var(--slate3);font-family:JetBrains Mono,monospace;min-width:26px">'+pct+'%</span>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('carbon-type-tfoot').innerHTML = '<tr><td colspan="3" style="color:var(--slate3)">Total</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-weight:600;color:var(--gold)">'+fmt(totTypeTco2,2)+' <span class="tunit">tCO₂e</span></td><td></td></tr>';
+
+  // ── Per Material ──
+  const byMat = {};
+  for (const r of elemRows) {
+    const mats = (r.material||'Unknown').split(';').map(m=>m.trim()).filter(Boolean);
+    const matKey = mats[0] || 'Unknown';
+    if (!byMat[matKey]) byMat[matKey] = {mat:matKey, cnt:0, tco2:0, factor:r.ecFactor};
+    byMat[matKey].cnt  += 1;
+    byMat[matKey].tco2 += r.tco2;
+  }
+  const matRows = Object.values(byMat).sort((a,b)=>b.tco2-a.tco2);
+  matRows.forEach(r=>r.tco2=round4(r.tco2));
+  const totMatTco2 = round4(matRows.reduce((a,r)=>a+r.tco2,0));
+
+  document.getElementById('carbon-mat-tbody').innerHTML = matRows.slice(0,20).map((r,i)=>{
+    const pct = totMatTco2>0 ? Math.round(r.tco2/totMatTco2*100) : 0;
+    const col = MCOLS[i%MCOLS.length];
+    return '<tr>'
+      +'<td style="color:var(--white2);font-size:12px;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.mat)+'">'+esc(r.mat)+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tq-300)">'+r.cnt+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--slate2)">'+r.factor+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--gold);font-weight:600">'+fmt(r.tco2,2)+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px">'
+        +'<div style="flex:1;height:3px;background:var(--navy-600);border-radius:2px"><div style="width:'+pct+'%;height:100%;border-radius:2px;background:'+col+'"></div></div>'
+        +'<span style="font-size:10px;color:var(--slate3);font-family:JetBrains Mono,monospace;min-width:26px">'+pct+'%</span>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('carbon-mat-tfoot').innerHTML = '<tr><td colspan="3" style="color:var(--slate3)">Total</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-weight:600;color:var(--gold)">'+fmt(totMatTco2,2)+' <span class="tunit">tCO₂e</span></td><td></td></tr>';
+
+  // ── Per Lantai ──
+  const byStorey = {};
+  for (const r of elemRows) {
+    if (!byStorey[r.storey]) byStorey[r.storey] = {storey:r.storey, storeyId:r.storeyId, vol:0, tco2:0};
+    byStorey[r.storey].vol  += r.vol;
+    byStorey[r.storey].tco2 += r.tco2;
+  }
+  // Sort by storey order
+  const storeyOrder = DATA.storeys.map(s=>s.name);
+  const storeyRows = Object.values(byStorey).sort((a,b)=>{
+    const ia=storeyOrder.indexOf(a.storey), ib=storeyOrder.indexOf(b.storey);
+    return (ia===-1?999:ia)-(ib===-1?999:ib);
+  });
+  storeyRows.forEach(r=>{r.vol=round4(r.vol);r.tco2=round4(r.tco2);});
+  const totStoreyTco2 = round4(storeyRows.reduce((a,r)=>a+r.tco2,0));
+
+  document.getElementById('carbon-storey-tbody').innerHTML = storeyRows.map((r,i)=>{
+    const pct = totStoreyTco2>0 ? Math.round(r.tco2/totStoreyTco2*100) : 0;
+    return '<tr>'
+      +'<td style="color:var(--white2);font-size:12px;font-weight:500">'+esc(r.storey)+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tq-300)">'+fmt(r.vol,1)+'</td>'
+      +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--gold);font-weight:600">'+fmt(r.tco2,2)+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px">'
+        +'<div style="flex:1;height:3px;background:var(--navy-600);border-radius:2px"><div style="width:'+pct+'%;height:100%;border-radius:2px;background:var(--tq-400)"></div></div>'
+        +'<span style="font-size:10px;color:var(--slate3);font-family:JetBrains Mono,monospace;min-width:26px">'+pct+'%</span>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('carbon-storey-tfoot').innerHTML = '<tr><td colspan="2" style="color:var(--slate3)">Total</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-weight:600;color:var(--gold)">'+fmt(totStoreyTco2,2)+' <span class="tunit">tCO₂e</span></td><td></td></tr>';
+
+  // ── Charts ──
+  // Donut per tipe
+  const top8 = typeRows.slice(0,8);
+  mkChart('ch-carbon-type',{type:'doughnut',data:{
+    labels: top8.map(r=>(ECFG[r.type]||{lbl:r.type.replace('IFC','')}).lbl),
+    datasets:[{data:top8.map(r=>r.tco2),backgroundColor:top8.map(r=>(ECFG[r.type]||{col:'#3a566e'}).col),borderWidth:0,hoverOffset:5}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+    plugins:{legend:{position:'right',labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:8}},tooltip:tt()}}});
+
+  // Bar per lantai
+  const csH = Math.min(500,Math.max(200,storeyRows.length*26+40));
+  const csBox = document.getElementById('carbon-storey-box');
+  if(csBox) csBox.style.height = csH+'px';
+  mkChart('ch-carbon-storey',{type:'bar',data:{
+    labels: storeyRows.map(r=>r.storey.length>13?r.storey.slice(0,12)+'…':r.storey),
+    datasets:[{label:'tCO₂e',data:storeyRows.map(r=>r.tco2),
+      backgroundColor:storeyRows.map((_,i)=>`hsla(${180+i*10},68%,${44+i*2}%,0.82)`),
+      borderRadius:4,borderWidth:0}]
+  },options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:tt()},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'tCO₂e',color:tc(),font:{size:9}}},
+            y:{grid:{display:false},ticks:{color:tc(),font:{size:9},autoSkip:false}}}}});
+
+  // ── Tabel faktor emisi ──
+  document.getElementById('carbon-factors').innerHTML = Object.entries(EC_BY_TYPE)
+    .filter(([k])=>k!=='DEFAULT').map(([t,f])=>{
+      const cfg = ECFG[t]||{lbl:t.replace('IFC',''),col:'#3a566e'};
+      return '<div style="background:var(--navy-700);border-radius:8px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px">'
+        +'<div style="display:flex;align-items:center;gap:7px">'
+          +'<div style="width:7px;height:7px;border-radius:50%;background:'+cfg.col+';flex-shrink:0"></div>'
+          +'<span style="font-size:12px;color:var(--white2)">'+cfg.lbl+'</span>'
+        +'</div>'
+        +'<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--gold)">'+f
+          +' <span style="font-size:9px;color:var(--slate3)">kgCO₂e/m³</span></span>'
+        +'</div>';
+    }).join('');
+
+  // ── Estimasi Akurasi ──
+  const totalPhysElem = d.storeys.reduce((a,s)=>a+s.totals.cnt, 0);
+  const elemWithVol   = elemRows.length;
+  const elemWithMat   = elemRows.filter(r => {
+    const ml = r.material.toLowerCase();
+    return EC_BY_MATERIAL.some(em => ml.includes(em.k));
+  }).length;
+  const volCovPct = totalPhysElem > 0 ? Math.round(elemWithVol/totalPhysElem*100) : 0;
+  const matCovPct = elemWithVol  > 0  ? Math.round(elemWithMat/elemWithVol*100)   : 0;
+  const avgCov    = (volCovPct + matCovPct) / 2;
+
+  let accColor, accLabel, accDesc;
+  if      (avgCov >= 80) { accColor='var(--green)'; accLabel='Cukup Baik (±30–40%)';    accDesc='Coverage volume dan material cukup tinggi. Hasil bisa digunakan untuk perbandingan internal dan screening awal yang lebih andal.'; }
+  else if (avgCov >= 60) { accColor='var(--am)';    accLabel='Terbatas (±40–60%)';       accDesc='Coverage sedang. Banyak elemen pakai faktor fallback per tipe, bukan per material spesifik. Gunakan sebagai indikasi saja.'; }
+  else if (avgCov >= 30) { accColor='var(--co)';    accLabel='Rendah (±60–80%)';         accDesc='Coverage rendah. Sebagian besar menggunakan asumsi generik. Hasil hanya valid sebagai order-of-magnitude.'; }
+  else                   { accColor='var(--co)';    accLabel='Sangat Rendah (>±80%)';    accDesc='Volume atau material tidak mencukupi. Hasil tidak dapat diandalkan bahkan untuk estimasi kasar.'; }
+
+  const accFactors = [
+    { label:'Coverage Volume',     pct:volCovPct, good:volCovPct>=70, detail:elemWithVol+' dari '+totalPhysElem+' elemen punya GrossVolume/NetVolume > 0' },
+    { label:'Coverage Material',   pct:matCovPct, good:matCovPct>=60, detail:elemWithMat+' dari '+elemWithVol+' elemen material-nya teridentifikasi di database' },
+    { label:'Relevansi Database',  pct:55,        good:false,         detail:'ICE v3 adalah database UK. Faktor emisi Indonesia dapat berbeda ±20–40% tergantung material dan produsen lokal.' },
+    { label:'Cakupan Tahap LCA',   pct:40,        good:false,         detail:'Hanya A1–A3 (produksi material). Tidak mencakup A4 (transportasi), A5 (konstruksi di site), B (operasional), C (akhir masa pakai).' },
+  ];
+
+  const accEl = document.getElementById('carbon-accuracy');
+  if (accEl) accEl.innerHTML =
+    '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;padding:11px 12px;background:color-mix(in srgb,'+accColor+' 8%,var(--navy-700));border-radius:8px;border:1px solid color-mix(in srgb,'+accColor+' 25%,transparent)">'
+      +'<div style="font-size:22px;flex-shrink:0">🎯</div>'
+      +'<div>'
+        +'<div style="font-size:12px;font-weight:700;color:'+accColor+';margin-bottom:3px">'+accLabel+'</div>'
+        +'<div style="font-size:11px;color:var(--slate);line-height:1.6">'+accDesc+'</div>'
+      +'</div>'
+    +'</div>'
+    + accFactors.map(f => {
+        const col = f.good ? 'var(--green)' : f.pct >= 60 ? 'var(--am)' : 'var(--co)';
+        return '<div style="margin-bottom:11px">'
+          +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+            +'<span style="font-size:11px;color:var(--white2);font-weight:500">'+f.label+'</span>'
+            +'<span style="font-size:11px;font-family:JetBrains Mono,monospace;color:'+col+'">'+f.pct+'%</span>'
+          +'</div>'
+          +'<div style="height:4px;background:var(--navy-600);border-radius:2px;margin-bottom:4px">'
+            +'<div style="width:'+f.pct+'%;height:100%;border-radius:2px;background:'+col+'"></div>'
+          +'</div>'
+          +'<div style="font-size:10px;color:var(--slate3);line-height:1.55">'+f.detail+'</div>'
+        +'</div>';
+      }).join('');
+
+  // ── Tools profesional ──
+  const tools = [
+    { name:'One Click LCA', url:'https://www.oneclicklca.com', badge:'Berbayar', badgeCol:'var(--am)',      desc:'Terintegrasi Revit & IFC. Pakai EPD spesifik. Paling komprehensif untuk LCA penuh A1–C4.' },
+    { name:'Tally',         url:'https://choosetally.com',     badge:'Plugin Revit',badgeCol:'var(--tq-300)',desc:'Plugin Revit, mapping langsung ke material model. Berbasis database EPD global.' },
+    { name:'EC3',           url:'https://buildingtransparency.org',badge:'Gratis',badgeCol:'var(--green)', desc:'Database EPD verified, gratis. Import dari Revit/IFC. Cocok untuk perbandingan material.' },
+    { name:'eTool LCD',     url:'https://etoollcd.com',        badge:'Berbayar', badgeCol:'var(--am)',      desc:'LCA tool dengan data regional Asia-Pacific, lebih relevan untuk konteks Indonesia.' },
+  ];
+  const toolsEl = document.getElementById('carbon-tools');
+  if (toolsEl) toolsEl.innerHTML = tools.map(t =>
+    '<div style="padding:10px 12px;background:var(--navy-700);border-radius:8px;border:1px solid var(--b)">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+        +'<span style="font-size:12px;font-weight:600;color:var(--white2)">'+t.name+'</span>'
+        +'<span style="font-size:10px;padding:1px 7px;border-radius:20px;'
+          +'background:color-mix(in srgb,'+t.badgeCol+' 15%,transparent);'
+          +'color:'+t.badgeCol+';border:1px solid color-mix(in srgb,'+t.badgeCol+' 30%,transparent)">'+t.badge+'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--slate);line-height:1.55;margin-bottom:5px">'+t.desc+'</div>'
+      +'<a href="'+t.url+'" style="font-size:10px;color:var(--tq-300);font-family:JetBrains Mono,monospace;text-decoration:none">'+t.url.replace('https://','')+'</a>'
+    +'</div>'
+  ).join('');
+}
+
+// ── CSV Export Carbon ──
+function exportCarbonCSV(mode) {
+  if (!DATA) return;
+  let rows, headers, filename;
+  const d = DATA;
+
+  if (mode === 'type') {
+    const byType = {};
+    for (const s of d.storeys) for (const e of s.elements) {
+      const vol = e.GrossVolume||e.NetVolume||0; if(!vol) continue;
+      const ec = getECFactor(e.type, e.material);
+      if(!byType[e.type]) byType[e.type]={type:e.type,vol:0,tco2:0,factor:ec.f};
+      byType[e.type].vol+=vol; byType[e.type].tco2+=round4(vol*ec.f/1000);
+    }
+    headers = ['Tipe Elemen','Label','Volume (m³)','Faktor (kgCO₂e/m³)','Total (tCO₂e)'];
+    rows = Object.values(byType).sort((a,b)=>b.tco2-a.tco2).map(r=>[
+      r.type,(ECFG[r.type]||{lbl:r.type.replace('IFC','')}).lbl,round4(r.vol),r.factor,round4(r.tco2)
+    ]);
+    filename = 'EmbodiedCarbon_PerTipe';
+  } else if (mode === 'mat') {
+    const byMat = {};
+    for (const s of d.storeys) for (const e of s.elements) {
+      const vol = e.GrossVolume||e.NetVolume||0; if(!vol) continue;
+      const ec = getECFactor(e.type, e.material);
+      const mat = (e.material||'Unknown').split(';')[0].trim()||'Unknown';
+      if(!byMat[mat]) byMat[mat]={mat,cnt:0,tco2:0,factor:ec.f};
+      byMat[mat].cnt+=1; byMat[mat].tco2+=round4(vol*ec.f/1000);
+    }
+    headers = ['Material','Jumlah Elemen','Faktor (kgCO₂e/m³)','Total (tCO₂e)'];
+    rows = Object.values(byMat).sort((a,b)=>b.tco2-a.tco2).map(r=>[r.mat,r.cnt,r.factor,round4(r.tco2)]);
+    filename = 'EmbodiedCarbon_PerMaterial';
+  } else {
+    const byS = {};
+    for (const s of d.storeys) for (const e of s.elements) {
+      const vol = e.GrossVolume||e.NetVolume||0; if(!vol) continue;
+      const ec = getECFactor(e.type, e.material);
+      if(!byS[s.name]) byS[s.name]={storey:s.name,vol:0,tco2:0};
+      byS[s.name].vol+=vol; byS[s.name].tco2+=round4(vol*ec.f/1000);
+    }
+    headers = ['Lantai','Volume (m³)','Total (tCO₂e)'];
+    rows = Object.values(byS).map(r=>[r.storey,round4(r.vol),round4(r.tco2)]);
+    filename = 'EmbodiedCarbon_PerLantai';
+  }
+
+  const csv = [
+    ['# Embodied Carbon — '+(d.header.buildingName||d.header.projectName||d.header.fileName)],
+    ['# Sumber faktor: ICE Database v3 (Bath University UK)'],
+    ['# Tanggal: '+new Date().toLocaleDateString('id-ID')],
+    [],
+    headers,
+    ...rows,
+  ].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download = filename+'_'+(d.header.buildingName||'model').replace(/\s/g,'_')+'.csv';
+  a.click();
+}
+
 // ═══════════════════════════════════════════════════════════
 // RENDER — QTO
 // ═══════════════════════════════════════════════════════════
@@ -1893,7 +2555,7 @@ function renderQTO() {
   // Note
   const hasQty = d.storeys.some(s=>s.totals.GrossVolume>0||s.totals.GrossArea>0);
   document.getElementById('qto-note').innerHTML = hasQty
-    ? `<strong>Data aktual dari IFCELEMENTQUANTITY.</strong> Volume, luas & panjang diambil langsung dari file. Satuan panjang file: <strong>${d.header.lengthUnit||'m'}</strong> → dikonversi ke meter. Elemen tanpa quantity set menampilkan 0.`
+    ? `<strong>Data aktual dari IFCELEMENTQUANTITY.</strong> Volume, luas & panjang diambil langsung dari file. Satuan panjang file: <strong>${d.header.lengthUnit||'m'}</strong> → dikonversi ke meter. Elemen tanpa quantity set menampilkan 0. <span style="color:var(--tq-300)">Jika Vol.Neto > Vol.Bruto: elemen tersebut hanya meng-export NetVolume tanpa GrossVolume — lihat baris Coverage di bawah tabel.</span>`
     : `<strong style="color:var(--gold)">⚠ Tidak ada IFCELEMENTQUANTITY ditemukan.</strong> File ini tidak menyertakan quantity set. Nilai volume & luas akan 0.`;
   document.getElementById('qto-note').className = 'note' + (hasQty?'':' warn');
 
@@ -2014,7 +2676,7 @@ function renderQTable() {
   const cols=[
     {k:'label',lbl:'Nama'},{k:'cat',lbl:'Kategori'},
     {k:'cnt',lbl:'Jml'},{k:'GrossVolume',lbl:'Vol.Bruto (m³)'},
-    {k:'NetVolume',lbl:'Vol.Neto (m³)'},{k:'GrossArea',lbl:'Luas (m²)'},
+    {k:'NetVolume',lbl:'Vol.Neto (m³)',title:'NetVolume: volume setelah dikurangi bukaan. Bisa lebih besar dari Bruto jika elemen hanya export NetVolume tanpa GrossVolume.'},{k:'GrossArea',lbl:'Luas (m²)'},
     {k:'Length_m',lbl:'Panjang (m)'},{k:'_b',lbl:'%',nosort:true},
   ];
   document.getElementById('qt-head').innerHTML=`<tr>${cols.map(c=>`
@@ -2037,14 +2699,23 @@ function renderQTable() {
     </tr>`;
   }).join('')||`<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--slate3)">Tidak ada data</td></tr>`;
 
+  const nElemWithGross = rows.filter(r=>r.GrossVolume>0).reduce((s,r)=>s+r.cnt,0);
+  const nElemWithNet   = rows.filter(r=>r.NetVolume>0).reduce((s,r)=>s+r.cnt,0);
+  const totCnt2 = rows.reduce((s,r)=>s+r.cnt,0);
   document.getElementById('qt-foot').innerHTML=`<tr>
     <td colspan="2" style="color:var(--slate3)">Total</td>
     <td>${fmti(totC)}</td>
-    <td>${fmt(totV,3)} <span class="tunit">m³</span></td>
-    <td>—</td>
+    <td title="GrossVolume tersedia pada ${nElemWithGross} dari ${totCnt2} elemen">${fmt(totV,3)} <span class="tunit">m³</span></td>
+    <td title="NetVolume tersedia pada ${nElemWithNet} dari ${totCnt2} elemen">—</td>
     <td>${fmt(totA,2)} <span class="tunit">m²</span></td>
     <td>${fmt(totL,2)} <span class="tunit">m</span></td>
     <td></td>
+  </tr>
+  <tr>
+    <td colspan="8" style="font-size:10px;color:var(--slate3);padding:5px 13px;font-style:italic">
+      Coverage: GrossVolume ada di ${nElemWithGross} elemen · NetVolume ada di ${nElemWithNet} elemen dari total ${totCnt2} elemen.
+      Jika Neto > Bruto: elemen sisanya hanya export NetVolume (tanpa GrossVolume).
+    </td>
   </tr>`;
 }
 
@@ -2057,6 +2728,13 @@ function renderQCharts() {
   const d = DATA;
   const labels = d.storeys.map(s=>s.name.length>13?s.name.slice(0,12)+'…':s.name);
 
+  // Dynamic height for QTO charts
+  const qChartH = Math.min(500, Math.max(180, d.storeys.length * 22 + 40));
+  const qvolBox = document.getElementById('qvol-chart-box');
+  if (qvolBox) qvolBox.style.height = qChartH + 'px';
+  const qaBox = document.getElementById('qarea-chart-box');
+  if (qaBox) qaBox.style.height = qChartH + 'px';
+
   // Stacked volume bar
   const top5 = Object.entries(d.allElemTypes).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t])=>t);
   mkChart('ch-qvol',{type:'bar',data:{labels,datasets:top5.map(t=>({
@@ -2064,20 +2742,24 @@ function renderQCharts() {
     data:d.storeys.map(s=>round4(s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0))),
     backgroundColor:(ECFG[t]||{col:'#3a566e'}).col+'bb',borderRadius:3,borderWidth:0,
   }))},options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
+    plugins:{legend:{labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
     scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
             y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m³',color:tc(),font:{size:9}}}}}});
 
   // Volume per type per storey — top 6 types with actual volume
   const allTypes = Object.entries(d.allElemTypes).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
   const volTypes = allTypes.filter(t => d.storeys.some(s => s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0) > 0)).slice(0,6);
+  const qareaH = Math.min(500, Math.max(180, d.storeys.length * 22 + 40));
+  const qareaBox = document.getElementById('qarea-chart-box');
+  if (qareaBox) qareaBox.style.height = qareaH + 'px';
+
   mkChart('ch-qarea',{type:'bar',data:{labels,datasets: volTypes.length ? volTypes.map(t=>({
     label:(ECFG[t]||{lbl:t.replace('IFC','')}).lbl,
     data:d.storeys.map(s=>round4(s.elements.filter(e=>e.type===t).reduce((a,e)=>a+e.GrossVolume,0))),
     backgroundColor:(ECFG[t]||{col:'#3a566e'}).col+'99',borderRadius:3,borderWidth:0,
   })) : [{label:'Tidak ada data volume',data:d.storeys.map(()=>0),backgroundColor:'#3a566e'}]},
   options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{labels:{color:'#5d7d99',font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
+    plugins:{legend:{labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:7}},tooltip:tt()},
     scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc(),font:{size:9},maxRotation:30}},
             y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:9}},title:{display:true,text:'m³',color:tc(),font:{size:9}}}}}});
 }
@@ -2085,33 +2767,54 @@ function renderQCharts() {
 function renderHeatmap() {
   const d = DATA;
   const types = Object.keys(d.allElemTypes).sort((a,b)=>d.allElemTypes[b]-d.allElemTypes[a]).slice(0,9);
-  const labelW = Math.min(120, Math.max(90, Math.round(types.length > 0 ? 600/types.length : 80)));
-  const rowLW  = 118;
-
   const matrix = d.storeys.map(s=>types.map(t=>s.elements.filter(e=>e.type===t).length));
   const maxV   = Math.max(...matrix.flat(), 1);
 
   function cellBg(v) {
     const t = v/maxV;
-    // navy -> turquoise gradient
-    const r = Math.round(9  + t*(0  - 9));
-    const g = Math.round(18 + t*(181-18));
-    const b = Math.round(33 + t*(181-33));
-    return `rgb(${r},${g},${b})`;
+    return `rgb(${Math.round(9+t*(0-9))},${Math.round(18+t*(181-18))},${Math.round(33+t*(181-33))})`;
   }
   function cellTx(v) { return v/maxV > 0.45 ? 'rgba(5,13,26,0.9)' : 'var(--slate3)'; }
 
-  document.getElementById('heatmap').innerHTML = `<div class="hm-wrap">
-    <div class="hm-title-row">
-      <div class="hm-corner" style="width:${rowLW}px"></div>
-      ${types.map(t=>`<div class="hm-clbl" style="max-width:${labelW}px">${(ECFG[t]||{lbl:t.replace('IFC','')}).lbl}</div>`).join('')}
+  // Gunakan tabel HTML agar header & sel otomatis sejajar
+  const ROW_LW = 130;
+
+  document.getElementById('heatmap').innerHTML = `
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;width:100%;table-layout:fixed">
+      <colgroup>
+        <col style="width:${ROW_LW}px">
+        ${types.map(()=>'<col>').join('')}
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="padding:0 8px 8px 0;text-align:left;font-size:10px;color:var(--slate3);font-weight:500"></th>
+          ${types.map(t=>`<th style="padding:0 3px 8px;text-align:center;font-size:9px;color:var(--slate3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${(ECFG[t]||{lbl:t.replace('IFC','')}).lbl}
+          </th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${d.storeys.map((s,ri)=>`<tr>
+          <td style="padding:2px 8px 2px 0;font-size:11px;color:var(--slate);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${ROW_LW}px">${esc(s.name)}</td>
+          ${types.map((_,ci)=>{
+            const v=matrix[ri][ci];
+            return `<td style="padding:2px 3px">
+              <div style="background:${cellBg(v)};color:${cellTx(v)};height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;transition:filter .15s" title="${(ECFG[types[ci]]||{lbl:types[ci]}).lbl}: ${v}">
+                ${v||''}
+              </div>
+            </td>`;
+          }).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
     </div>
-    ${d.storeys.map((s,ri)=>`<div class="hm-row">
-      <div class="hm-rlbl" style="width:${rowLW}px">${esc(s.name)}</div>
-      ${types.map((_,ci)=>{const v=matrix[ri][ci];return `<div class="hm-cell" style="background:${cellBg(v)};color:${cellTx(v)}" title="${types[ci]}: ${v}">${v||''}</div>`;}).join('')}
-    </div>`).join('')}
-    <div class="hm-leg"><span>0</span><div class="hm-legbar"></div><span>${maxV}</span><span style="margin-left:6px">unit per lantai</span></div>
-  </div>`;
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--slate3)">
+      <span>0</span>
+      <div style="flex:1;max-width:130px;height:5px;border-radius:3px;background:linear-gradient(to right,var(--navy-700),var(--tq-400))"></div>
+      <span>${maxV}</span>
+      <span style="margin-left:4px">unit per lantai</span>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2331,6 +3034,7 @@ function filterElemTable() {
 
   const PAGE = 200; // max rows rendered for performance
   const shown = rows.slice(0, PAGE);
+  rows = applyElemSort(rows);
   document.getElementById('elem-table-badge').textContent =
     rows.length + ' elemen' + (rows.length > PAGE ? ' (tampil '+PAGE+')' : '');
 
@@ -2372,13 +3076,14 @@ function renderPsetTable(psets) {
 function filterPsets(q) {
   const psets = window._ALL_PSETS || [];
   const ql = (q||'').toLowerCase();
-  const filtered = ql
+  let filtered = ql
     ? psets.filter(p =>
         p.name.toLowerCase().includes(ql) ||
         p.type.toLowerCase().includes(ql) ||
         [...p.values].some(v => String(v).toLowerCase().includes(ql)) ||
         p.pset.toLowerCase().includes(ql))
     : psets;
+  filtered = applyPsetSort(filtered);
   renderPsetTable(filtered);
   document.getElementById('pset-badge').textContent = filtered.length + (ql ? '/'+psets.length : '') + ' baris';
 }
@@ -2389,6 +3094,8 @@ function filterProps() {}
 
 function renderMatTable(mats) {
   const total = window._MAT_TOTAL || 1;
+  mats = applyMatSort(mats);
+  // re-index for color after sort
   document.getElementById('mat-tbody').innerHTML = mats.map(([n,c], i) => {
     const pct = total > 0 ? Math.round(c / total * 100) : 0;
     const col  = MCOLS[i % MCOLS.length];
@@ -2417,6 +3124,176 @@ function filterMats(q) {
   const filtered = q ? mats.filter(([n]) => n.toLowerCase().includes(q.toLowerCase())) : mats;
   renderMatTable(filtered);
   document.getElementById('mat-list-badge').textContent = filtered.length + (q ? '/'+mats.length : '') + ' jenis';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// UNIVERSAL SORT & EXPORT
+// ═══════════════════════════════════════════════════════════
+
+const _SORT_STATE = {}; // tableId -> {col, dir}
+
+function sortTable(tableId, col) {
+  const prev = _SORT_STATE[tableId] || {col: null, dir: 1};
+  const dir  = prev.col === col ? -prev.dir : -1; // default desc
+  _SORT_STATE[tableId] = {col, dir};
+
+  // Update header arrows
+  document.querySelectorAll('[id^="sth-' + tableId + '-"]').forEach(th => {
+    th.classList.remove('asc','desc');
+    if (th.id === 'sth-' + tableId + '-' + col) {
+      th.classList.add(dir > 0 ? 'asc' : 'desc');
+    }
+  });
+
+  // Trigger re-render with current filter state
+  switch (tableId) {
+    case 'mat':   filterMats(document.getElementById('mat-search')?.value || ''); break;
+    case 'elem':  filterElemTable(); break;
+    case 'pset':  filterPsets(document.getElementById('pset-search')?.value || ''); break;
+    case 'ruang': filterRuang(); break;
+    case 'rekap': renderRuangRekap(DATA?.spaces || []); break;
+  }
+}
+
+function getSortedRows(tableId, rows, keyFn) {
+  const st = _SORT_STATE[tableId];
+  if (!st || !st.col) return rows;
+  return [...rows].sort((a, b) => {
+    const va = keyFn(a, st.col), vb = keyFn(b, st.col);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'string') return st.dir * va.localeCompare(vb, 'id', {numeric:true});
+    return st.dir * (va - vb);
+  });
+}
+
+function downloadCSV(filename, headers, rows) {
+  const csv = [
+    headers.map(h => '"' + String(h).replace(/"/g,'""') + '"').join(','),
+    ...rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(','))
+  ].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'}));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportTable(tableId) {
+  const proj = DATA?.header?.buildingName || DATA?.header?.projectName || 'IFC';
+  const d    = new Date().toLocaleDateString('id-ID');
+  switch (tableId) {
+    case 'mat': {
+      const mats = window._ALL_MATS || [];
+      downloadCSV(
+        'Material_' + proj + '.csv',
+        ['Material', 'Jumlah Elemen', 'Proporsi (%)'],
+        mats.map(([n,c]) => [n, c, Math.round(c / (window._MAT_TOTAL||1) * 100)])
+      );
+      break;
+    }
+    case 'elem': {
+      const rows = _ELEM_ROWS || [];
+      const q    = (document.getElementById('elem-search')?.value || '').toLowerCase();
+      const tf   = document.getElementById('elem-type-filter')?.value || '';
+      const sf   = document.getElementById('elem-storey-filter')?.value || '';
+      let filtered = rows;
+      if (q)  filtered = filtered.filter(e => (e.name||'').toLowerCase().includes(q) || e.type.toLowerCase().includes(q));
+      if (tf) filtered = filtered.filter(e => e.type === tf);
+      if (sf) filtered = filtered.filter(e => e.storeyName === sf);
+      filtered = applyElemSort(filtered);
+      downloadCSV(
+        'Elemen_' + proj + '.csv',
+        ['#ID','Tipe IFC','Nama Elemen','Lantai','Vol.Bruto (m³)','Luas (m²)','Material'],
+        filtered.map(e => [e.id, e.type, e.name||'', e.storeyName, e.GrossVolume||'', e.GrossArea||'', e.material||''])
+      );
+      break;
+    }
+    case 'pset': {
+      const psets   = window._ALL_PSETS || [];
+      const q       = (document.getElementById('pset-search')?.value || '').toLowerCase();
+      let filtered  = q ? psets.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          p.type.toLowerCase().includes(q) ||
+          [...p.values].some(v => String(v).toLowerCase().includes(q)) ||
+          p.pset.toLowerCase().includes(q)) : psets;
+      filtered = applyPsetSort(filtered);
+      downloadCSV(
+        'Properti_' + proj + '.csv',
+        ['Properti','Tipe Elemen','Nilai','Pset','Jumlah'],
+        filtered.map(p => [p.name, p.type, [...p.values].join(' / '), p.pset, p.count])
+      );
+      break;
+    }
+    case 'ruang': {
+      const spaces  = DATA?.spaces || [];
+      const q       = (document.getElementById('ruang-search')?.value || '').toLowerCase();
+      const sf      = document.getElementById('ruang-storey-filter')?.value || '';
+      let filtered  = spaces;
+      if (q)  filtered = filtered.filter(r => r.name.toLowerCase().includes(q));
+      if (sf) filtered = filtered.filter(r => r.storeyName === sf);
+      filtered = applyRuangSort(filtered);
+      downloadCSV(
+        'LuasanRuang_' + proj + '.csv',
+        ['Nama Ruang','Lantai','Luas Neto (m²)','Luas Bruto (m²)','Tinggi (m)','Volume (m³)','Fungsi'],
+        filtered.map(r => [r.name, r.storeyName, r.NetFloorArea||'', r.GrossFloorArea||'', r.Height_m||'', r.NetVolume||'', r.interior?'Interior':'Eksterior'])
+      );
+      break;
+    }
+    case 'rekap': {
+      const tbody = document.getElementById('ruang-rekap-tbody');
+      const csvRows = [];
+      for (const tr of tbody.querySelectorAll('tr')) {
+        const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+        if (cells.length) csvRows.push(cells);
+      }
+      downloadCSV(
+        'RekapLantai_' + proj + '.csv',
+        ['Lantai','Jumlah Ruang','Total Luas Neto (m²)','Total Luas Bruto (m²)','Total Volume (m³)','Ruang Terbesar'],
+        csvRows
+      );
+      break;
+    }
+  }
+}
+
+// ── Sort key functions per table
+function applyElemSort(rows) {
+  const KEY = {
+    id: r => r.id, type: r => (ECFG[r.type]||{lbl:r.type}).lbl,
+    name: r => r.name||'', storey: r => r.storeyName||'',
+    vol: r => r.GrossVolume||0, area: r => r.GrossArea||0, mat: r => r.material||'',
+  };
+  return getSortedRows('elem', rows, (r,col) => KEY[col]?.(r));
+}
+function applyPsetSort(rows) {
+  const KEY = {
+    name: r => r.name, type: r => r.type,
+    vals: r => [...r.values].join('/'), pset: r => r.pset, count: r => r.count,
+  };
+  return getSortedRows('pset', rows, (r,col) => KEY[col]?.(r));
+}
+function applyRuangSort(rows) {
+  const KEY = {
+    name: r => r.name, storey: r => r.storeyName,
+    net: r => r.NetFloorArea, gross: r => r.GrossFloorArea,
+    height: r => r.Height_m, vol: r => r.NetVolume,
+  };
+  return getSortedRows('ruang', rows, (r,col) => KEY[col]?.(r));
+}
+function applyRekapSort(entries) {
+  const KEY = {
+    name: ([n]) => n, cnt: ([,st]) => st.cnt,
+    net: ([,st]) => st.netArea, gross: ([,st]) => st.grossArea, vol: ([,st]) => st.vol,
+  };
+  return getSortedRows('rekap', entries, (r,col) => KEY[col]?.(r));
+}
+function applyMatSort(rows) {
+  const total = window._MAT_TOTAL || 1;
+  const KEY = { name: ([n]) => n, count: ([,c]) => c };
+  return getSortedRows('mat', rows, (r,col) => KEY[col]?.(r));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2466,11 +3343,18 @@ function buildStoreyChart(mode) {
     }];
     yLabel = 'unit';
   }
+  // Dynamic height: min 28px per bar, min 200px, max 600px
+  const storH = Math.min(600, Math.max(200, d.storeys.length * 30 + 40));
+  const storBox = document.getElementById('stor-chart-box');
+  if (storBox) storBox.style.height = storH + 'px';
+
   mkChart('ch-stor',{type:'bar',data:{labels,datasets},options:{
     responsive:true,maintainAspectRatio:false,indexAxis:'y',
     plugins:{legend:{display:false},tooltip:tt()},
-    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10}},title:{display:true,text:yLabel,color:tc(),font:{size:9}}},
-            y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}});
+    scales:{
+      x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10}},title:{display:true,text:yLabel,color:tc(),font:{size:9}}},
+      y:{grid:{display:false},ticks:{color:tc(),font:{size:10},autoSkip:false}}
+    }}});
 }
 function toggleStoreyChart(mode) {
   window._STOR_MODE = mode;
@@ -2542,6 +3426,7 @@ function processFile(file) {
         setProgress(98, 'Merender BIM checklist…');
         renderBIM();
         setProgress(99, 'Merender properti…');
+        renderCarbon();
         renderRuang();
         renderProps();
         setProgress(100, 'Selesai!');
@@ -2584,7 +3469,7 @@ function processFile(file) {
 }
 
 function resetApp() {
-  DATA = null; QTO_STOREY = 'all'; QTO_SORT = {col:'GrossVolume',dir:-1}; _RUANG_ROWS = [];
+  DATA = null; QTO_STOREY = 'all'; QTO_SORT = {col:'GrossVolume',dir:-1}; _RUANG_ROWS = []; _ELEM_ROWS = [];
   Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
   CHARTS = {};
   document.getElementById('screen-dash').style.display   = 'none';
