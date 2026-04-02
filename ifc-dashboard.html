@@ -803,6 +803,16 @@ body {
     </div>
 
     <div class="sec">Material</div>
+    <!-- Panel Material Coverage -->
+    <div class="panel" style="margin-bottom:13px">
+      <div class="ph">
+        <span class="pt">Kelengkapan Material</span>
+        <span class="ps" id="mat-cov-badge">—</span>
+      </div>
+      <div id="mat-cov-content" style="padding:14px 16px">
+        <!-- diisi oleh renderOverview() -->
+      </div>
+    </div>
     <div class="g2">
       <div class="panel">
         <div class="ph"><span class="pt">Komposisi Material</span><span class="ps" id="mat-badge">—</span></div>
@@ -960,7 +970,7 @@ body {
     <div style="background:rgba(240,96,96,0.08);border:1px solid rgba(240,96,96,0.25);border-radius:10px;padding:13px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:flex-start">
       <div style="font-size:20px;flex-shrink:0;line-height:1.2">⚠️</div>
       <div style="font-size:12px;color:var(--slate);line-height:1.7">
-        <strong style="color:var(--co);font-size:13px">DISCLAIMER — Bukan Perhitungan Profesional</strong><br>
+        <strong style="color:#e8607a;font-size:13px">DISCLAIMER — Bukan Perhitungan Profesional</strong><br>
         Hasil ini adalah <strong>estimasi kasar untuk keperluan skrining awal</strong>, bukan perhitungan yang dapat dipertanggungjawabkan secara profesional.
         <strong>Jangan gunakan</strong> untuk: klaim kepada klien/regulator, submission green building rating (GBCI, LEED, EDGE), atau keputusan desain final.<br>
         Untuk perhitungan resmi, gunakan tools berbasis EPD: <strong>One Click LCA</strong>, <strong>Tally</strong> (plugin Revit), atau <strong>EC3</strong> (Building Transparency).
@@ -1205,7 +1215,7 @@ const ECFG = {
   IFCDOOR:               {lbl:'Pintu',             cat:'Arsitektur', col:'#e8b84b'},
   IFCWINDOW:             {lbl:'Jendela',           cat:'Arsitektur', col:'#f0d080'},
   IFCSTAIR:              {lbl:'Tangga',            cat:'Sirkulasi',  col:'#a08be8'},
-  IFCSTAIRFLIGHT:        {lbl:'Tangga Flight',     cat:'Sirkulasi',  col:'#b8a4f0'},
+  IFCSTAIRFLIGHT:        {lbl:'Tangga',     cat:'Sirkulasi',  col:'#b8a4f0'},
   IFCROOF:               {lbl:'Atap',              cat:'Arsitektur', col:'#5d7d99'},
   IFCFOOTING:            {lbl:'Pondasi',           cat:'Struktur',   col:'#4ec9a0'},
   IFCRAILING:            {lbl:'Railing',           cat:'Arsitektur', col:'#8eaac2'},
@@ -1764,6 +1774,7 @@ function parseIFC(text, onProgress) {
   // ── Physical element types
   const allElemTypes = {};
   const allMaterials = {};
+  const noMatByType  = {};  // tipe → jumlah elemen tanpa material
 
   // ── Storey sort: elevation first, name-based fallback when elevations identical
   function storeyNameOrder(name) {
@@ -1868,6 +1879,10 @@ function parseIFC(text, onProgress) {
       if (mat) {
         for (const ml of mat.split(';').map(x => x.trim()).filter(Boolean))
           allMaterials[ml] = (allMaterials[ml] || 0) + 1;
+      } else {
+        // Track elemen tanpa material per tipe
+        if (!noMatByType[t]) noMatByType[t] = 0;
+        noMatByType[t]++;
       }
     }
 
@@ -1889,6 +1904,7 @@ function parseIFC(text, onProgress) {
     storeys: sortedStoreys,
     allElemTypes,
     allMaterials,
+    noMatByType,
     spaces,
     byType,
     totalEntities: Object.keys(entities).length,
@@ -2009,6 +2025,72 @@ function renderOverview() {
     datasets:[{data:chartData,backgroundColor:chartCols,borderWidth:0,hoverOffset:5}]
   },options:{responsive:true,maintainAspectRatio:false,cutout:'52%',
     plugins:{legend:{position:'right',labels:{color:tc(),font:{size:10,family:'Inter'},boxWidth:8,padding:6}},tooltip:tt()}}});
+
+  // ── Material Coverage panel — render seluruh content via innerHTML
+  const noMat    = d.noMatByType || {};
+  const totalEl  = d.storeys.reduce((a,s)=>a+s.totals.cnt, 0);
+  const noMatCnt = Object.values(noMat).reduce((a,v)=>a+v, 0);
+  const hasMat   = totalEl - noMatCnt;
+  const covPct   = totalEl > 0 ? Math.round(hasMat/totalEl*100) : 0;
+  const covColor = covPct >= 90 ? '#4ec9a0' : covPct >= 70 ? 'var(--tq-400)' : covPct >= 50 ? '#e8b84b' : '#e8607a';
+
+  document.getElementById('mat-cov-badge').textContent = covPct + '% coverage';
+
+  const typeRows = Object.entries(d.allElemTypes)
+    .map(([t, total]) => {
+      const noM  = noMat[t] || 0;
+      const hasM = total - noM;
+      const pct  = total > 0 ? Math.round(hasM/total*100) : 0;
+      return { t, total, noM, hasM, pct };
+    })
+    .sort((a,b) => a.pct - b.pct);
+
+  function matBar(pct, col, h) {
+    // Pakai linear-gradient — tidak perlu child div, tidak ada overflow issue
+    // Gradient: col dari 0% sampai pct%, lalu navy-600 sampai 100%
+    const bg = pct === 0   ? 'var(--navy-600)'
+             : pct === 100 ? col
+             : 'linear-gradient(to right,'+col+' '+pct+'%,var(--navy-600) '+pct+'%)';
+    return '<div style="height:'+h+'px;background:'+bg+';border-radius:'+(h/2)+'px"></div>';
+  }
+
+  document.getElementById('mat-cov-content').innerHTML =
+    // ── Summary bar
+    '<div style="margin-bottom:14px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'
+        +'<span style="font-size:12px;color:var(--white2);font-weight:500">Elemen dengan material</span>'
+        +'<span style="font-size:18px;font-weight:700;color:'+covColor+'">'+covPct+'%</span>'
+      +'</div>'
+      + matBar(covPct, covColor, 8)
+      +'<div style="display:flex;justify-content:space-between;margin-top:5px">'
+        +'<span style="font-size:11px;color:var(--slate3)">'+fmti(hasMat)+' elemen punya material</span>'
+        +'<span style="font-size:11px;color:#e8607a">'+fmti(noMatCnt)+' tanpa material</span>'
+      +'</div>'
+    +'</div>'
+    // ── Per tipe grid
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px">'
+    + typeRows.map(r => {
+        const cfg   = ECFG[r.t] || {lbl: r.t.replace('IFC',''), col:'#3a566e'};
+        const col   = r.pct >= 90 ? '#4ec9a0' : r.pct >= 70 ? 'var(--tq-400)' : r.pct >= 50 ? '#e8b84b' : '#e8607a';
+        const badge = r.pct === 100 ? '<span style="color:#4ec9a0">✓ Lengkap</span>'
+                    : r.pct === 0   ? '<span style="color:#e8607a">✗ Tidak ada</span>'
+                    : '<span style="color:#e8b84b">'+r.noM+' kurang</span>';
+        return '<div style="background:var(--navy-700);border-radius:8px;padding:10px 12px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+            +'<div style="display:flex;align-items:center;gap:6px">'
+              +'<div style="width:7px;height:7px;border-radius:50%;background:'+cfg.col+';flex-shrink:0"></div>'
+              +'<span style="font-size:11px;color:var(--white2);font-weight:500">'+cfg.lbl+'</span>'
+            +'</div>'
+            +'<span style="font-size:12px;font-weight:700;color:'+col+'">'+r.pct+'%</span>'
+          +'</div>'
+          + matBar(r.pct, col, 5)
+          +'<div style="display:flex;justify-content:space-between;margin-top:5px">'
+            +'<span style="font-size:10px;color:var(--slate3)">'+fmti(r.total)+' elemen</span>'
+            + badge
+          +'</div>'
+        +'</div>';
+      }).join('')
+    +'</div>';
 }
 
 
@@ -2495,7 +2577,7 @@ function renderCarbon() {
     const cfg = ECFG[r.type]||{lbl:r.type.replace('IFC',''),col:'#3a566e'};
     const pct = totTypeTco2>0 ? Math.round(r.tco2/totTypeTco2*100) : 0;
     const srcIcon = r.matSrc==='IFC material' ? '🟢' : '🟡';
-    const volIcon = (r.volSrc||'ifc')==='ifc' ? '' : ' <span title="Volume estimasi (fallback)" style="font-size:9px;color:var(--am)">est</span>';
+    const volIcon = (r.volSrc||'ifc')==='ifc' ? '' : ' <span title="Volume estimasi (fallback)" style="font-size:9px;color:#e8b84b">est</span>';
     return '<tr>'
       +'<td><div class="tcell"><div class="tdot" style="background:'+cfg.col+'"></div><div class="tname">'+cfg.lbl+'</div></div></td>'
       +'<td style="font-size:10px;color:var(--slate2)" title="Sumber: '+r.matSrc+'">'+srcIcon+' '+esc(r.matUsed||'—')+'</td>'
@@ -2630,10 +2712,10 @@ function renderCarbon() {
   const avgCov    = (volCovPct + matCovPct) / 2;
 
   let accColor, accLabel, accDesc;
-  if      (avgCov >= 80) { accColor='var(--green)'; accLabel='Cukup Baik (±30–40%)';    accDesc='Coverage volume dan material cukup tinggi. Hasil bisa digunakan untuk perbandingan internal dan screening awal yang lebih andal.'; }
-  else if (avgCov >= 60) { accColor='var(--am)';    accLabel='Terbatas (±40–60%)';       accDesc='Coverage sedang. Banyak elemen pakai faktor fallback per tipe, bukan per material spesifik. Gunakan sebagai indikasi saja.'; }
-  else if (avgCov >= 30) { accColor='var(--co)';    accLabel='Rendah (±60–80%)';         accDesc='Coverage rendah. Sebagian besar menggunakan asumsi generik. Hasil hanya valid sebagai order-of-magnitude.'; }
-  else                   { accColor='var(--co)';    accLabel='Sangat Rendah (>±80%)';    accDesc='Volume atau material tidak mencukupi. Hasil tidak dapat diandalkan bahkan untuk estimasi kasar.'; }
+  if      (avgCov >= 80) { accColor='#4ec9a0'; accLabel='Cukup Baik (±30–40%)';    accDesc='Coverage volume dan material cukup tinggi. Hasil bisa digunakan untuk perbandingan internal dan screening awal yang lebih andal.'; }
+  else if (avgCov >= 60) { accColor='#e8b84b';    accLabel='Terbatas (±40–60%)';       accDesc='Coverage sedang. Banyak elemen pakai faktor fallback per tipe, bukan per material spesifik. Gunakan sebagai indikasi saja.'; }
+  else if (avgCov >= 30) { accColor='#e8607a';    accLabel='Rendah (±60–80%)';         accDesc='Coverage rendah. Sebagian besar menggunakan asumsi generik. Hasil hanya valid sebagai order-of-magnitude.'; }
+  else                   { accColor='#e8607a';    accLabel='Sangat Rendah (>±80%)';    accDesc='Volume atau material tidak mencukupi. Hasil tidak dapat diandalkan bahkan untuk estimasi kasar.'; }
 
   const accFactors = [
     { label:'Coverage Volume',     pct:volCovPct, good:volCovPct>=70, detail:elemWithVolIFC+' elemen dari IFC langsung · '+elemWithVolCalc+' dari Area×Tebal · total '+elemWithVol+' dari '+totalPhysElem },
@@ -2652,7 +2734,7 @@ function renderCarbon() {
       +'</div>'
     +'</div>'
     + accFactors.map(f => {
-        const col = f.good ? 'var(--green)' : f.pct >= 60 ? 'var(--am)' : 'var(--co)';
+        const col = f.good ? '#4ec9a0' : f.pct >= 60 ? '#e8b84b' : '#e8607a';
         return '<div style="margin-bottom:11px">'
           +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
             +'<span style="font-size:11px;color:var(--white2);font-weight:500">'+f.label+'</span>'
@@ -2667,10 +2749,10 @@ function renderCarbon() {
 
   // ── Tools profesional ──
   const tools = [
-    { name:'One Click LCA', url:'https://www.oneclicklca.com', badge:'Berbayar', badgeCol:'var(--am)',      desc:'Terintegrasi Revit & IFC. Pakai EPD spesifik produk. Paling komprehensif untuk LCA penuh A1–C4.' },
+    { name:'One Click LCA', url:'https://www.oneclicklca.com', badge:'Berbayar', badgeCol:'#e8b84b',      desc:'Terintegrasi Revit & IFC. Pakai EPD spesifik produk. Paling komprehensif untuk LCA penuh A1–C4.' },
     { name:'Tally',         url:'https://choosetally.com',     badge:'Plugin Revit',badgeCol:'var(--tq-300)',desc:'Plugin Revit, mapping langsung ke material model. Berbasis database EPD global.' },
-    { name:'EC3',           url:'https://buildingtransparency.org',badge:'Gratis',badgeCol:'var(--green)', desc:'Database EPD verified, gratis. Import dari Revit/IFC. Cocok untuk perbandingan material.' },
-    { name:'eTool LCD',     url:'https://etoollcd.com',        badge:'Berbayar', badgeCol:'var(--am)',      desc:'LCA tool dengan data regional Asia-Pacific, lebih relevan untuk konteks Indonesia.' },
+    { name:'EC3',           url:'https://buildingtransparency.org',badge:'Gratis',badgeCol:'#4ec9a0', desc:'Database EPD verified, gratis. Import dari Revit/IFC. Cocok untuk perbandingan material.' },
+    { name:'eTool LCD',     url:'https://etoollcd.com',        badge:'Berbayar', badgeCol:'#e8b84b',      desc:'LCA tool dengan data regional Asia-Pacific, lebih relevan untuk konteks Indonesia.' },
   ];
   const toolsEl = document.getElementById('carbon-tools');
   if (toolsEl) toolsEl.innerHTML = tools.map(t =>
@@ -2688,7 +2770,7 @@ function renderCarbon() {
 
   } catch(err) {
     console.error('renderCarbon error:', err);
-    document.getElementById('carbon-note').innerHTML += '<br><strong style="color:var(--co)">Error: ' + err.message + '</strong>';
+    document.getElementById('carbon-note').innerHTML += '<br><strong style="color:#e8607a">Error: ' + err.message + '</strong>';
   }
 }
 
@@ -3062,7 +3144,11 @@ function renderBIM() {
       {n:'Elemen tanpa kuantitas',  s:(()=>{const noQ=d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.GrossArea===0).length,0);return noQ===0?'p':noQ<10?'w':'i';})(), d:'Elemen yang GrossVolume & GrossArea = 0', v:(()=>{const noQ=d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.GrossArea===0).length,0);const tot=d.storeys.reduce((a,s)=>a+s.totals.cnt,0);return noQ+' / '+tot+' elemen';})()},
     ]},
     {title:'Material & Properti',items:[
-      {n:'Material terdefinisi',  s:Object.keys(d.allMaterials).length>0?'p':'w',d:'IFCMATERIAL',    v:Object.keys(d.allMaterials).length+' jenis'},
+      {n:'Material terdefinisi',
+        s: (()=>{ const tot=d.storeys.reduce((a,s)=>a+s.totals.cnt,0); const noM=Object.values(d.noMatByType||{}).reduce((a,v)=>a+v,0); const pct=tot>0?Math.round((tot-noM)/tot*100):0; return pct>=90?'p':pct>=70?'w':'f'; })(),
+        d:'Coverage material per elemen fisik',
+        v: (()=>{ const tot=d.storeys.reduce((a,s)=>a+s.totals.cnt,0); const noM=Object.values(d.noMatByType||{}).reduce((a,v)=>a+v,0); return Math.round((tot-noM)/tot*100)+'% ('+fmti(tot-noM)+'/'+fmti(tot)+' elemen)'; })()
+      },
       {n:'Pset tersedia',         s:(d.byType['IFCPROPERTYSET']||[]).length>0?'p':'i',d:'IfcPropertySet',v:(d.byType['IFCPROPERTYSET']||[]).length+' set'},
       {n:'Skema IFC4/2x3',        s:['IFC4','IFC2X3'].some(s=>d.schema?.includes(s))?'p':'w',d:'Versi skema',v:d.schema},
       {n:'Aplikasi tercatat',     s:d.header.application?'p':'i',d:'Authoring tool',v:esc(d.header.application||'—')},
