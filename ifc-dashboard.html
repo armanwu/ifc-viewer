@@ -759,7 +759,8 @@ body {
   </div>
 
   <div class="tabs">
-    <button class="tab on" onclick="switchTab(this,'overview')">Ikhtisar</button>
+    <button class="tab on" onclick="switchTab(this,'summary')">Ringkasan Eksekutif</button>
+    <button class="tab" onclick="switchTab(this,'overview')">Ikhtisar</button>
     <button class="tab" onclick="switchTab(this,'qto')">QTO per Lantai</button>
     <button class="tab" onclick="switchTab(this,'ruang')">Luasan Ruang</button>
     <button class="tab" onclick="switchTab(this,'carbon')">Embodied Carbon</button>
@@ -768,7 +769,94 @@ body {
   </div>
 
   <!-- ═ OVERVIEW ═ -->
-  <div class="pane on" id="pane-overview">
+  <!-- ═ EXECUTIVE SUMMARY ═ -->
+  <div class="pane on" id="pane-summary">
+
+    <!-- Project Info Bar -->
+    <div id="proj-info-bar" style="background:var(--navy-800);border:1px solid var(--b2);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--slate2);margin-bottom:4px">Proyek</div>
+        <div id="si-project" style="font-size:16px;font-weight:700;color:var(--white2)">—</div>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:10px;color:var(--slate2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">Gedung</div><div id="si-building" style="font-size:13px;color:var(--white3)">—</div></div>
+        <div><div style="font-size:10px;color:var(--slate2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">Skema</div><div id="si-schema" style="font-size:13px;color:var(--tq-300)">—</div></div>
+        <div><div style="font-size:10px;color:var(--slate2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">Aplikasi</div><div id="si-app" style="font-size:13px;color:var(--white3)">—</div></div>
+        <div><div style="font-size:10px;color:var(--slate2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">Tanggal Model</div><div id="si-date" style="font-size:13px;color:var(--white3)">—</div></div>
+        <div><div style="font-size:10px;color:var(--slate2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">Tanggal Laporan</div><div id="si-report-date" style="font-size:13px;color:var(--white3)">—</div></div>
+      </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div id="sum-kpis" class="qsum" style="margin-bottom:16px"></div>
+
+    <!-- Main grid: Narasi + BIM Score + Isu -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-bottom:14px">
+
+      <!-- Narasi Otomatis -->
+      <div class="panel" style="grid-column:1/3">
+        <div class="ph"><span class="pt">Ringkasan Model</span></div>
+        <div id="sum-narasi" style="padding:16px 20px;font-size:13px;color:var(--slate);line-height:1.9"></div>
+      </div>
+
+      <!-- BIM Score -->
+      <div class="panel">
+        <div class="ph"><span class="pt">Skor Kelengkapan BIM</span></div>
+        <div style="padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--navy-600)" stroke-width="10"/>
+            <circle id="sum-ring" cx="60" cy="60" r="52" fill="none" stroke="var(--tq-400)" stroke-width="10"
+              stroke-dasharray="326.73" stroke-dashoffset="326.73"
+              stroke-linecap="round" transform="rotate(-90 60 60)"
+              style="transition:stroke-dashoffset .8s ease"/>
+            <text x="60" y="56" text-anchor="middle" font-size="26" font-weight="700" fill="var(--white2)" id="sum-score-num">—</text>
+            <text x="60" y="72" text-anchor="middle" font-size="10" fill="var(--slate2)">dari 100</text>
+          </svg>
+          <div id="sum-score-grade" style="font-size:13px;font-weight:600;padding:3px 16px;border-radius:20px;background:rgba(0,181,181,.12);color:var(--tq-300)">—</div>
+          <div id="sum-score-bars" style="width:100%;display:flex;flex-direction:column;gap:5px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Isu & Rekomendasi + Material Coverage + Elemen -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:14px">
+
+      <!-- Isu utama -->
+      <div class="panel">
+        <div class="ph"><span class="pt">Isu & Tindakan yang Diperlukan</span><span class="ps" id="sum-isu-badge">—</span></div>
+        <div id="sum-isu" style="padding:12px;display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- Progress per kategori -->
+      <div class="panel">
+        <div class="ph"><span class="pt">Status per Kategori</span></div>
+        <div id="sum-cats" style="padding:12px;display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+
+    <!-- Quantity snapshot -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Snapshot Kuantitas</span><span class="ps">dari IFCELEMENTQUANTITY aktual</span></div>
+      <div style="overflow-x:auto">
+        <table class="qtable">
+          <thead><tr>
+            <th style="cursor:default">Tipe Elemen</th>
+            <th style="cursor:default;text-align:right">Jumlah</th>
+            <th style="cursor:default;text-align:right">Vol. Bruto (m³)</th>
+            <th style="cursor:default;text-align:right">Luas (m²)</th>
+            <th style="cursor:default">Material</th>
+            <th style="cursor:default;text-align:center">Material %</th>
+          </tr></thead>
+          <tbody id="sum-qty-tbody"></tbody>
+          <tfoot id="sum-qty-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+
+  <div class="pane" id="pane-overview">
     <div class="kpi-row" id="kpis"></div>
 
     <div class="sec">Elemen Bangunan</div>
@@ -2833,6 +2921,230 @@ function exportCarbonCSV(mode) {
   a.click();
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — EXECUTIVE SUMMARY
+// ═══════════════════════════════════════════════════════════
+function renderSummary() {
+  const d = DATA;
+  const h = d.header;
+
+  // ── Project Info
+  document.getElementById('si-project').textContent  = h.projectName || h.buildingName || h.fileName || '—';
+  document.getElementById('si-building').textContent = h.buildingName || '—';
+  document.getElementById('si-schema').textContent   = d.schema || '—';
+  document.getElementById('si-app').textContent      = (h.application||'—').split(' ')[0];
+  try {
+    const ts = h.timeStamp || '';
+    document.getElementById('si-date').textContent = ts ? new Date(ts).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '—';
+  } catch(e) { document.getElementById('si-date').textContent = h.timeStamp || '—'; }
+  document.getElementById('si-report-date').textContent = new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+
+  // ── Hitung semua metric
+  const totalElem   = d.storeys.reduce((a,s)=>a+s.totals.cnt, 0);
+  const totalVol    = round4(d.storeys.reduce((a,s)=>a+s.totals.GrossVolume, 0));
+  const totalArea   = round4(d.storeys.reduce((a,s)=>a+s.totals.GrossArea, 0));
+  const totalLen    = round4(d.storeys.reduce((a,s)=>a+s.totals.Length_m, 0));
+  const nStoreys    = d.storeys.length;
+  const nTypes      = Object.keys(d.allElemTypes).length;
+  const nMats       = Object.keys(d.allMaterials).length;
+  const nSpaces     = (d.spaces||[]).length;
+  const netArea     = round4((d.spaces||[]).reduce((a,s)=>a+s.NetFloorArea,0));
+
+  // Material coverage
+  const noMat       = d.noMatByType || {};
+  const noMatCnt    = Object.values(noMat).reduce((a,v)=>a+v, 0);
+  const matCovPct   = totalElem > 0 ? Math.round((totalElem-noMatCnt)/totalElem*100) : 0;
+
+  // Qty coverage
+  const hasQty      = d.storeys.some(s=>s.totals.GrossVolume>0||s.totals.GrossArea>0);
+  const elemNoVol   = d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.GrossVolume===0&&e.NetVolume===0).length,0);
+  const volCovPct   = totalElem > 0 ? Math.round((totalElem-elemNoVol)/totalElem*100) : 0;
+
+  // ── KPI
+  document.getElementById('sum-kpis').innerHTML = [
+    {cls:'c-tq',   icon:'🏗', lbl:'Total Elemen',      val: fmti(totalElem),    unit: nTypes+' tipe'},
+    {cls:'c-sage', icon:'🏢', lbl:'Lantai/Level',       val: nStoreys,           unit: 'level bangunan'},
+    {cls:'c-gold', icon:'📦', lbl:'Volume Bruto',       val: fmt(totalVol,1),    unit: 'm³ (IFC)'},
+    {cls:'c-lil',  icon:'⬛', lbl:'Luas Area',          val: fmt(totalArea,1),   unit: 'm² (IFC)'},
+    {cls:'c-tq',   icon:'🚪', lbl:'Ruang (IfcSpace)',   val: fmti(nSpaces),      unit: 'total ruang'},
+    {cls:'c-gold', icon:'📐', lbl:'Luas Neto Ruang',    val: netArea>0?fmt(netArea,1):'—', unit: 'm² neto'},
+  ].map(k=>'<div class="qsc '+k.cls+'">'
+    +'<div style="font-size:18px;margin-bottom:4px">'+k.icon+'</div>'
+    +'<div class="qsc-lbl">'+k.lbl+'</div>'
+    +'<div class="qsc-val">'+k.val+'</div>'
+    +'<div class="qsc-unit">'+k.unit+'</div>'
+  +'</div>').join('');
+
+  // ── Narasi otomatis
+  const hasSpace  = nSpaces > 0;
+  const matStatus = matCovPct >= 90 ? 'lengkap ('+matCovPct+'%)' : matCovPct >= 70 ? 'sebagian besar sudah ada ('+matCovPct+'%)' : 'belum lengkap ('+matCovPct+'%, perlu perhatian)';
+  const qtyStatus = volCovPct >= 80 ? 'tersedia di sebagian besar elemen' : 'belum lengkap — '+elemNoVol+' elemen tanpa data kuantitas';
+  const proxyCount = d.allElemTypes['IFCBUILDINGELEMENTPROXY'] || 0;
+  const proxyNote  = proxyCount > 0 ? ' Terdapat '+fmti(proxyCount)+' elemen bertipe <em>Element Proxy</em> yang perlu dikategorikan ulang di authoring tool.' : '';
+
+  document.getElementById('sum-narasi').innerHTML =
+    '<p style="margin-bottom:10px">Model BIM <strong style="color:var(--white2)">'+esc(h.buildingName||h.projectName||'Proyek ini')+'</strong>'
+    +' terdiri dari <strong style="color:var(--tq-300)">'+fmti(totalElem)+' elemen fisik</strong>'
+    +' yang tersebar di <strong style="color:var(--tq-300)">'+nStoreys+' lantai/level</strong>.'
+    +' Total volume bruto tercatat <strong style="color:var(--gold)">'+fmt(totalVol,1)+' m³</strong>'
+    +' dengan luas area <strong style="color:var(--gold)">'+fmt(totalArea,1)+' m²</strong>.</p>'
+
+    +(hasSpace
+      ? '<p style="margin-bottom:10px">Program ruang mencakup <strong style="color:var(--white2)">'+fmti(nSpaces)+' ruang (IfcSpace)</strong>'
+        +' dengan total luas neto <strong style="color:var(--gold)">'+fmt(netArea,1)+' m²</strong>.</p>'
+      : '<p style="margin-bottom:10px;color:var(--slate3)"><em>Data ruang (IfcSpace) tidak tersedia dalam file ini.</em></p>')
+
+    +'<p style="margin-bottom:10px">Assignment material <strong>'+matStatus+'</strong>.'
+    +' Data kuantitas (IfcQuantitySet) <strong>'+qtyStatus+'</strong>.'+proxyNote+'</p>'
+
+    +'<p style="font-size:11px;color:var(--slate3);border-top:1px solid var(--b);padding-top:10px;margin-top:4px">'
+    +'File: <code style="font-size:10px">'+esc(h.fileName||'—')+'</code>'
+    +' · Skema: <strong>'+esc(d.schema||'—')+'</strong>'
+    +' · Dibuat dengan: <strong>'+esc(h.application||'—')+'</strong>'
+    +'</p>';
+
+  // ── BIM Score (re-compute ringkas dari checklist)
+  const et = d.allElemTypes;
+  const has = t => (et[t]||0) > 0;
+  const checks = [
+    {lbl:'Struktur Spasial', score: Math.round((
+      (h.projectName?1:0)+(h.buildingName?1:0)+(nStoreys>0?1:0)
+      +(d.storeys.some(s=>s.elevM!==0)?1:0)
+      +(d.storeys.some(s=>s.elements.length>0)?1:0)
+    )/5*100)},
+    {lbl:'Elemen Arsitektur', score: Math.round((
+      ((has('IFCWALL')||has('IFCWALLSTANDARDCASE'))?1:0)+(has('IFCSLAB')?1:0)
+      +(has('IFCDOOR')?0.5:0)+(has('IFCWINDOW')?0.5:0)+(has('IFCROOF')?0.5:0)
+    )/3.5*100)},
+    {lbl:'Kuantitas', score: Math.round((
+      (hasQty?1:0)+(totalVol>0?1:0)+(totalArea>0?1:0)
+    )/3*100)},
+    {lbl:'Material', score: matCovPct},
+    {lbl:'Kelengkapan Spasial', score: Math.round((
+      (d.storeys.every(s=>s.totals.cnt>0)?1:0)
+      +(proxyCount===0?1:0)
+      +(hasSpace?1:0)
+    )/3*100)},
+  ];
+  const avgScore = Math.round(checks.reduce((a,c)=>a+c.score,0)/checks.length);
+  const ringCirc = 2*Math.PI*52;
+  document.getElementById('sum-ring').style.strokeDashoffset = ringCirc - (avgScore/100*ringCirc);
+  const ringColor = avgScore>=85?'#4ec9a0':avgScore>=70?'var(--tq-400)':avgScore>=55?'#e8b84b':'#e8607a';
+  document.getElementById('sum-ring').style.stroke = ringColor;
+  document.getElementById('sum-score-num').textContent = avgScore;
+  document.getElementById('sum-score-grade').textContent =
+    avgScore>=85?'Sangat Baik':avgScore>=70?'Baik':avgScore>=55?'Cukup':'Perlu Perbaikan';
+  document.getElementById('sum-score-grade').style.cssText =
+    'font-size:13px;font-weight:600;padding:3px 16px;border-radius:20px;background:color-mix(in srgb,'+ringColor+' 15%,transparent);color:'+ringColor;
+
+  document.getElementById('sum-score-bars').innerHTML = checks.map(ch=>{
+    const col = ch.score>=85?'#4ec9a0':ch.score>=70?'var(--tq-400)':ch.score>=55?'#e8b84b':'#e8607a';
+    const bg  = ch.score===0?'var(--navy-600)':ch.score===100?col
+              :'linear-gradient(to right,'+col+' '+ch.score+'%,var(--navy-600) '+ch.score+'%)';
+    return '<div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--slate2);margin-bottom:2px">'
+        +'<span>'+ch.lbl+'</span><span style="color:'+col+'">'+ch.score+'%</span>'
+      +'</div>'
+      +'<div style="height:4px;border-radius:2px;background:'+bg+'"></div>'
+    +'</div>';
+  }).join('');
+
+  // ── Isu otomatis
+  const issues = [];
+  if (proxyCount > 0)
+    issues.push({lvl:'w', msg:'<strong>'+fmti(proxyCount)+' Element Proxy</strong> — perlu dikategorikan ke tipe IFC yang tepat di Revit/ArchiCAD'});
+  if (matCovPct < 90)
+    issues.push({lvl:'w', msg:'<strong>'+fmti(noMatCnt)+' elemen tanpa material</strong> ('+((100-matCovPct))+'%) — lengkapi assignment material sebelum export berikutnya'});
+  if (!hasQty)
+    issues.push({lvl:'f', msg:'<strong>Tidak ada IFCELEMENTQUANTITY</strong> — aktifkan "Export Quantities" di pengaturan IFC export'});
+  else if (volCovPct < 70)
+    issues.push({lvl:'w', msg:'<strong>'+fmti(elemNoVol)+' elemen tanpa data volume/luas</strong> — aktifkan BaseQuantities di IFC export settings'});
+  if (!hasSpace)
+    issues.push({lvl:'i', msg:'<strong>Tidak ada data ruang (IfcSpace)</strong> — buat Room di Revit lalu centang Export Rooms saat export IFC'});
+  if (!h.buildingName)
+    issues.push({lvl:'i', msg:'<strong>Nama gedung tidak terisi</strong> di metadata IFC — isi IfcBuilding.Name sebelum export'});
+  const emptyStoreys = d.storeys.filter(s=>s.totals.cnt===0);
+  if (emptyStoreys.length > 0)
+    issues.push({lvl:'w', msg:'<strong>'+emptyStoreys.length+' lantai tanpa elemen</strong>: '+emptyStoreys.map(s=>s.name).join(', ')});
+  if (issues.length === 0)
+    issues.push({lvl:'p', msg:'<strong>✓ Tidak ada isu kritis ditemukan.</strong> Model sudah memenuhi semua kriteria utama.'});
+
+  document.getElementById('sum-isu-badge').textContent = issues.filter(i=>i.lvl!=='p').length + ' isu';
+  const isuColors = {f:'#e8607a', w:'#e8b84b', i:'var(--tq-300)', p:'#4ec9a0'};
+  const isuIcons  = {f:'✗', w:'⚠', i:'ℹ', p:'✓'};
+  document.getElementById('sum-isu').innerHTML = issues.map(isu=>
+    '<div style="display:flex;gap:10px;padding:9px 12px;border-radius:8px;background:color-mix(in srgb,'+isuColors[isu.lvl]+' 8%,var(--navy-700));border:1px solid color-mix(in srgb,'+isuColors[isu.lvl]+' 20%,transparent)">'
+      +'<span style="font-size:14px;color:'+isuColors[isu.lvl]+';flex-shrink:0;margin-top:1px">'+isuIcons[isu.lvl]+'</span>'
+      +'<span style="font-size:12px;color:var(--slate);line-height:1.6">'+isu.msg+'</span>'
+    +'</div>'
+  ).join('');
+
+  // ── Status per kategori
+  const cats = [
+    {lbl:'Arsitektur',  pct: Math.round(((has('IFCWALL')||has('IFCWALLSTANDARDCASE')?1:0)+(has('IFCSLAB')?1:0)+(has('IFCDOOR')?1:0)+(has('IFCWINDOW')?1:0)+(has('IFCROOF')?1:0))/5*100), col:'#2dd9d9'},
+    {lbl:'Struktur',    pct: Math.round(((has('IFCCOLUMN')?1:0)+(has('IFCBEAM')?1:0)+(has('IFCFOOTING')?1:0))/3*100), col:'#3d6898'},
+    {lbl:'Kuantitas',   pct: volCovPct,  col:'#e8b84b'},
+    {lbl:'Material',    pct: matCovPct,  col:'#a08be8'},
+    {lbl:'Ruang',       pct: hasSpace?100:0, col:'#4ec9a0'},
+  ];
+  document.getElementById('sum-cats').innerHTML = cats.map(ct=>{
+    const bg = ct.pct===0?'var(--navy-600)':ct.pct===100?ct.col
+             :'linear-gradient(to right,'+ct.col+' '+ct.pct+'%,var(--navy-600) '+ct.pct+'%)';
+    const label = ct.pct===100?'Lengkap':ct.pct===0?'Tidak ada':ct.pct+'%';
+    return '<div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'
+        +'<span style="color:var(--white2);font-weight:500">'+ct.lbl+'</span>'
+        +'<span style="color:'+ct.col+';font-weight:600">'+label+'</span>'
+      +'</div>'
+      +'<div style="height:6px;border-radius:3px;background:'+bg+';margin-bottom:2px"></div>'
+    +'</div>';
+  }).join('');
+
+  // ── Quantity Snapshot table
+  const typeData = Object.entries(d.allElemTypes)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([t, cnt]) => {
+      const cfg   = ECFG[t]||{lbl:t.replace('IFC',''),col:'#3a566e'};
+      const gv    = round4(d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.type===t).reduce((b,e)=>b+e.GrossVolume,0),0));
+      const ga    = round4(d.storeys.reduce((a,s)=>a+s.elements.filter(e=>e.type===t).reduce((b,e)=>b+e.GrossArea,0),0));
+      const noM   = (d.noMatByType||{})[t]||0;
+      const matPct= cnt>0?Math.round((cnt-noM)/cnt*100):0;
+      const mpCol = matPct>=90?'#4ec9a0':matPct>=70?'var(--tq-400)':'#e8b84b';
+      const mpBg  = matPct===0?'var(--navy-600)':matPct===100?mpCol
+                  :'linear-gradient(to right,'+mpCol+' '+matPct+'%,var(--navy-600) '+matPct+'%)';
+      return {t, cfg, cnt, gv, ga, matPct, mpCol, mpBg};
+    });
+
+  const totGV = round4(typeData.reduce((a,r)=>a+r.gv,0));
+  const totGA = round4(typeData.reduce((a,r)=>a+r.ga,0));
+  const totCnt= typeData.reduce((a,r)=>a+r.cnt,0);
+
+  document.getElementById('sum-qty-tbody').innerHTML = typeData.map(r=>
+    '<tr>'
+    +'<td><div class="tcell"><div class="tdot" style="background:'+r.cfg.col+'"></div><div class="tname">'+r.cfg.lbl+'</div></div></td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px">'+fmti(r.cnt)+'</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:'+(r.gv>0?'var(--tq-300)':'var(--slate3)')+'">'+(r.gv>0?fmt(r.gv,1):'—')+'</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:'+(r.ga>0?'var(--gold)':'var(--slate3)')+'">'+(r.ga>0?fmt(r.ga,1):'—')+'</td>'
+    +'<td style="font-size:11px;color:var(--slate2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      + (Object.keys(d.allMaterials).filter(m => d.storeys.some(s=>s.elements.some(e=>e.type===r.t&&e.material&&e.material.includes(m)))).slice(0,2).join(', ')||'—')
+    +'</td>'
+    +'<td style="min-width:80px;padding:8px 12px">'
+      +'<div style="display:flex;align-items:center;gap:6px">'
+        +'<div style="flex:1;height:4px;border-radius:2px;background:'+r.mpBg+'"></div>'
+        +'<span style="font-size:10px;color:'+r.mpCol+';font-family:JetBrains Mono,monospace;min-width:28px">'+r.matPct+'%</span>'
+      +'</div>'
+    +'</td>'
+    +'</tr>'
+  ).join('');
+
+  document.getElementById('sum-qty-tfoot').innerHTML =
+    '<tr><td colspan="2" style="color:var(--slate3)">Total ('+fmti(totCnt)+' elemen)</td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;color:var(--tq-300)">'+fmt(totGV,1)+' <span class="tunit">m³</span></td>'
+    +'<td style="text-align:right;font-family:JetBrains Mono,monospace;color:var(--gold)">'+fmt(totGA,1)+' <span class="tunit">m²</span></td>'
+    +'<td colspan="2"></td></tr>';
+}
+
 // ═══════════════════════════════════════════════════════════
 // RENDER — QTO
 // ═══════════════════════════════════════════════════════════
@@ -3716,6 +4028,7 @@ function processFile(file) {
         setProgress(98, 'Merender BIM checklist…');
         renderBIM();
         setProgress(99, 'Merender properti…');
+        renderSummary();
         renderCarbon();
         renderRuang();
         renderProps();
