@@ -680,6 +680,18 @@ body {
 .ptable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ptable th { text-align: left; padding: 7px 13px; font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--slate3); font-weight: 500; border-bottom: 1px solid var(--b); background: var(--navy-900); }
 .ptable td { padding: 7px 13px; border-bottom: 1px solid var(--b); color: var(--slate); }
+.elem-row-clickable { cursor: pointer; transition: background .12s; }
+.elem-row-clickable:hover td { background: var(--navy-700) !important; }
+.elem-row-clickable.selected td { background: rgba(0,206,206,.08) !important; }
+.pset-card { background: var(--navy-700); border-radius: 9px; padding: 12px 14px; border: 1px solid var(--b2); }
+.pset-card-title { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--tq-300); font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid var(--b); padding-bottom: 6px; }
+.pset-prop-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--b); font-size: 11px; }
+.pset-prop-row:last-child { border-bottom: none; }
+.pset-prop-name { color: var(--slate2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pset-prop-val  { color: var(--white2); font-weight: 500; flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-align: right; }
+.pset-prop-val.bool-true  { color: #4ec9a0; }
+.pset-prop-val.bool-false { color: var(--slate3); }
+.pset-prop-val.numeric    { color: var(--tq-300); }
 .ptable tr:last-child td { border-bottom: none; }
 .ptable tr:hover td { background: var(--navy-700); }
 .pkey { color: var(--white2); font-weight: 500; }
@@ -1223,7 +1235,37 @@ body {
   </div>
 
   <!-- ═ PROPERTIES ═ -->
+
+
   <div class="pane" id="pane-props">
+
+    <!-- ── Panel Parameter per Tipe Family ── -->
+    <div class="panel" style="margin-bottom:14px" id="tp-panel">
+      <div class="ph">
+        <span class="pt">📋 Parameter per Tipe Family</span>
+        <span class="ps" id="tp-badge">—</span>
+        <button class="btn-csv" onclick="exportTypeParam()" style="font-size:11px;padding:4px 10px">↓ CSV</button>
+      </div>
+      <div style="padding:9px 13px;border-bottom:1px solid var(--b);display:flex;gap:8px;flex-wrap:wrap">
+        <input class="sinput" id="tp-search" placeholder="Cari nama tipe…"
+          oninput="filterTypeParam()" style="flex:2;min-width:160px">
+        <select class="qsel" id="tp-elem-filter" onchange="filterTypeParam()" style="min-width:140px">
+          <option value="">Semua Tipe Elemen</option>
+        </select>
+        <select class="qsel" id="tp-param-filter" onchange="filterTypeParam()" style="min-width:180px">
+          <option value="">Semua Parameter</option>
+        </select>
+      </div>
+      <div id="tp-empty" style="display:none;padding:20px;text-align:center;font-size:12px;color:var(--slate3)">
+        Tidak ada type parameter ditemukan. Pastikan Shared/Type Parameter sudah di-export ke IFC.
+      </div>
+      <div style="overflow-x:auto">
+        <table class="qtable" id="tp-table" style="min-width:600px">
+          <thead id="tp-thead"></thead>
+          <tbody id="tp-tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- Tabel Elemen Individual -->
     <div class="panel" style="margin-bottom:14px">
@@ -1250,9 +1292,22 @@ body {
             <th onclick="sortTable('elem','vol')" class="sth" id="sth-elem-vol" style="text-align:right">Vol.Bruto (m³) <span class="sarr">↕</span></th>
             <th onclick="sortTable('elem','area')" class="sth" id="sth-elem-area" style="text-align:right">Luas (m²) <span class="sarr">↕</span></th>
             <th onclick="sortTable('elem','mat')" class="sth" id="sth-elem-mat">Material <span class="sarr">↕</span></th>
+            <th style="cursor:default;text-align:center;width:36px" title="Properties">📋</th>
           </tr></thead>
           <tbody id="elem-tbody"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Panel Detail Elemen (muncul saat klik baris elemen) -->
+    <div id="elem-detail-panel" style="display:none;margin-bottom:14px">
+      <div class="panel" style="border:1px solid rgba(0,206,206,.3);background:color-mix(in srgb,var(--tq-400) 4%,var(--navy-800))">
+        <div class="ph" style="border-color:rgba(0,206,206,.2)">
+          <span class="pt" id="elem-detail-title">— Properties Elemen</span>
+          <span class="ps" id="elem-detail-sub">—</span>
+          <button onclick="closeElemDetail()" style="font-size:18px;background:none;border:none;color:var(--slate2);cursor:pointer;padding:0 4px;line-height:1" title="Tutup">×</button>
+        </div>
+        <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px" id="elem-detail-psets"></div>
       </div>
     </div>
 
@@ -1260,21 +1315,27 @@ body {
     <div class="g2">
       <div class="panel">
         <div class="ph">
-          <span class="pt">Properti Set (Pset)</span>
+          <span class="pt">Properti Set (Pset) — Semua Elemen</span>
           <span class="ps" id="pset-badge">—</span>
           <button class="btn-csv" onclick="exportTable('pset')" style="font-size:11px;padding:4px 10px">↓ CSV</button>
         </div>
-        <div style="padding:9px 13px;border-bottom:1px solid var(--b)">
-          <input class="sinput" id="pset-search" placeholder="Cari nama properti atau nilai…" oninput="filterPsets(this.value)">
+        <div style="padding:9px 13px;border-bottom:1px solid var(--b);display:flex;gap:8px;flex-wrap:wrap">
+          <input class="sinput" id="pset-search" placeholder="Cari nama properti, nilai, atau pset…" oninput="filterPsets(this.value)" style="flex:1;min-width:200px">
+          <select class="qsel" id="pset-type-filter" onchange="filterPsets(document.getElementById('pset-search').value)" style="min-width:140px">
+            <option value="">Semua Tipe</option>
+          </select>
+          <select class="qsel" id="pset-name-filter" onchange="filterPsets(document.getElementById('pset-search').value)" style="min-width:160px">
+            <option value="">Semua Pset</option>
+          </select>
         </div>
-        <div class="scroll" style="max-height:360px">
+        <div class="scroll" style="max-height:400px">
           <table class="qtable">
             <thead id="pset-thead"><tr>
               <th onclick="sortTable('pset','name')" class="sth" id="sth-pset-name">Properti <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','pset')" class="sth" id="sth-pset-pset">Pset / Grup <span class="sarr">↕</span></th>
               <th onclick="sortTable('pset','type')" class="sth" id="sth-pset-type">Tipe Elemen <span class="sarr">↕</span></th>
-              <th onclick="sortTable('pset','vals')" class="sth" id="sth-pset-vals">Nilai <span class="sarr">↕</span></th>
-              <th onclick="sortTable('pset','pset')" class="sth" id="sth-pset-pset">Pset <span class="sarr">↕</span></th>
-              <th onclick="sortTable('pset','count')" class="sth" id="sth-pset-count" style="text-align:right">n <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','vals')" class="sth" id="sth-pset-vals">Nilai (contoh) <span class="sarr">↕</span></th>
+              <th onclick="sortTable('pset','count')" class="sth" id="sth-pset-count" style="text-align:right">n elemen <span class="sarr">↕</span></th>
             </tr></thead>
             <tbody id="pset-tbody"></tbody>
           </table>
@@ -1282,7 +1343,7 @@ body {
       </div>
 
       <div class="panel">
-        <div class="ph"><span class="pt">Header File</span></div>
+        <div class="ph"><span class="pt">Metadata File IFC</span></div>
         <div class="hinfo" id="hinfo"></div>
       </div>
     </div>
@@ -1683,19 +1744,62 @@ function parseIFC(text, onProgress) {
 
   // ── IFCPROPERTYSINGLEVALUE
   const propVals = {};
+  // Helper: parse nilai IFC → string yang bersih
+  function parseIfcVal(raw) {
+    if (!raw || raw.trim()==='$') return null;
+    // IFCBOOLEAN(.T./.F.)
+    const bm = /IFCBOOLEAN\((\.\w+\.)\)/.exec(raw);
+    if (bm) return (bm[1]==='.T.'||bm[1]==='.TRUE.') ? 'Ya' : 'Tidak';
+    // IFCLOGICAL
+    const lm = /IFCLOGICAL\((\.\w+\.)\)/.exec(raw);
+    if (lm) return (lm[1]==='.T.'||lm[1]==='.TRUE.') ? 'Ya' : 'Tidak';
+    // Standalone .T. / .F.
+    if (raw.trim()==='.T.'||raw.trim()==='.TRUE.') return 'Ya';
+    if (raw.trim()==='.F.'||raw.trim()==='.FALSE.') return 'Tidak';
+    // IFCxxx('string value')
+    const sm = /IFC\w+\('([^']*)'\)/.exec(raw);
+    if (sm) return sm[1].trim();
+    // IFCxxx(numeric)
+    const nm = /IFC\w+\(([^)]+)\)/.exec(raw);
+    if (nm) {
+      const n = nm[1].trim().replace(/\.$/,''); // hapus trailing dot
+      const f = parseFloat(n);
+      return isNaN(f) ? n : (Number.isInteger(f)?String(f):String(f));
+    }
+    // Quoted string langsung
+    const qm = /^'([^']*)'$/.exec(raw.trim());
+    if (qm) return qm[1];
+    return raw.trim();
+  }
+
   for (const id of (byType['IFCPROPERTYSINGLEVALUE'] || [])) {
     const raw   = entities[id].raw;
     const parts = raw.split(',');
     const name  = clean(parts[0]);
-    // value: look for IFCxxx(val) pattern
-    const vm = /IFC\w+\(([^)]*)\)/.exec(raw);
-    let val = '$';
-    if (vm) {
-      val = vm[1].trim().replace(/^'+|'+$/g, '');
-      if (val === '.T.' || val === '.TRUE.')  val = 'True';
-      if (val === '.F.' || val === '.FALSE.') val = 'False';
-    }
-    if (name && name !== '$') propVals[id] = { name, value: val };
+    const val   = parseIfcVal(parts[2]?.trim());
+    if (name && name !== '$' && val !== null) propVals[id] = { name, value: val };
+  }
+
+  // Baca IFCPROPERTYLISTVALUE (nilai berupa list)
+  for (const id of (byType['IFCPROPERTYLISTVALUE'] || [])) {
+    const raw   = entities[id].raw;
+    const parts = raw.split(',');
+    const name  = clean(parts[0]);
+    const listM = /\(([^)]+)\)/.exec(raw.slice(raw.indexOf(',')));
+    if (!listM || name === '$') continue;
+    const vals = listM[1].split(',').map(v=>parseIfcVal(v.trim())).filter(Boolean);
+    if (name && vals.length) propVals[id] = { name, value: vals.join(', ') };
+  }
+
+  // Baca IFCPROPERTYENUMERATEDVALUE
+  for (const id of (byType['IFCPROPERTYENUMERATEDVALUE'] || [])) {
+    const raw   = entities[id].raw;
+    const parts = raw.split(',');
+    const name  = clean(parts[0]);
+    const listM = /\(([^)]+)\)/.exec(raw.slice(raw.indexOf(',')));
+    if (!listM || name === '$') continue;
+    const vals = listM[1].split(',').map(v=>parseIfcVal(v.trim())||clean(v)).filter(Boolean);
+    if (name && vals.length) propVals[id] = { name, value: vals.join(', ') };
   }
 
   // ── IFCPROPERTYSET -> list of prop ids
@@ -1710,19 +1814,115 @@ function parseIFC(text, onProgress) {
     psetDefs[id] = { name: pname, propIds: ids };
   }
 
-  // ── element -> pset list (IFCPROPERTYSET only, not IFCELEMENTQUANTITY)
+  // ── element -> pset list
+  // TIGA jalur:
+  // 1. IFCRELDEFINESBYPROPERTIES → instance-level pset
+  // 2. IFCRELDEFINESBYTYPE → type entity → embedded psets di IFCWALLTYPE dll
+  // 3. Embedded psets dalam *TYPE entity (Revit custom type parameters)
   const elemPsets = {};
+
+  function addPset(eid, psId, fromType) {
+    if (!(psId in psetDefs)) return;
+    if (!elemPsets[eid]) elemPsets[eid] = [];
+    if (!elemPsets[eid].includes(psId)) {
+      elemPsets[eid].push(psId);
+      if (fromType && !psetDefs[psId].fromType) psetDefs[psId].fromType = true;
+    }
+  }
+
+  // ── 1. Instance-level psets via IFCRELDEFINESBYPROPERTIES
   for (const relId of (byType['IFCRELDEFINESBYPROPERTIES'] || [])) {
     const raw = entities[relId].raw;
     const m   = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
     if (!m) continue;
-    const eids  = m[1].split(',').map(s => parseInt(s.trim().replace('#',''))).filter(n => !isNaN(n));
-    const psId  = parseInt(m[2]);
-    if (psId in psetDefs) {
-      for (const eid of eids) {
-        if (!elemPsets[eid]) elemPsets[eid] = [];
-        elemPsets[eid].push(psId);
+    const eids = m[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    const psId = parseInt(m[2]);
+    for (const eid of eids) addPset(eid, psId, false);
+  }
+
+  // ── 2+3. Type-level psets via IFCRELDEFINESBYTYPE
+  // Revit export: IFCRELDEFINESBYTYPE → IFCWALLTYPE → embedded pset_ids
+  // Custom type parameters (seperti SPBE-Kode_RAB) tersimpan di sini
+
+  // Semua *TYPE entities — baca embedded pset_ids dari raw
+  const TYPE_SUFFIXES = ['IFCWALLTYPE','IFCWALLSTANDARDCASETYPE','IFCSLABTYPE','IFCCOLUMNTYPE',
+    'IFCBEAMTYPE','IFCDOORTYPE','IFCWINDOWTYPE','IFCROOFTYPE','IFCSTAIRTYPE','IFCSTAIRFLIGHTTYPE',
+    'IFCFOOTINGTYPE','IFCMEMBERTYPE','IFCPLATETYPE','IFCCURTAINWALLTYPE','IFCCOVERINGTYPE',
+    'IFCRAILINGTYPE','IFCFURNITURETYPE','IFCLIGHTFIXTURETYPE','IFCBUILDINGELEMENTPROXYTYPE',
+    'IFCFLOWTERMINALTYPE','IFCSYSTEMFURNITUREELEMENTTYPE','IFCDISTRIBUTIONELEMENTTYPE',
+    'IFCPROXYTYPE'];
+
+  // typePsets: typeId → [psId, ...]
+  const typePsets = {};
+  for (const typeLabel of TYPE_SUFFIXES) {
+    for (const typeId of (byType[typeLabel] || [])) {
+      const raw    = entities[typeId].raw;
+      // Cari semua group (#id1,#id2,...) di dalam raw
+      const groups = [...raw.matchAll(/\(([#\d,\s]+)\)/g)];
+      for (const g of groups) {
+        const refs = g[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+        for (const ref of refs) {
+          if (ref in psetDefs) {
+            // ref adalah IFCPROPERTYSET — ini embedded type pset
+            if (!typePsets[typeId]) typePsets[typeId] = [];
+            if (!typePsets[typeId].includes(ref)) typePsets[typeId].push(ref);
+          }
+        }
       }
+    }
+  }
+
+  // IFCRELDEFINESBYTYPE: link instance elemen ke type-nya
+  for (const relId of (byType['IFCRELDEFINESBYTYPE'] || [])) {
+    const raw    = entities[relId].raw;
+    const m      = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const instEids = m[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    const typeId   = parseInt(m[2]);
+
+    // Assign embedded type psets ke semua instance
+    for (const psId of (typePsets[typeId] || [])) {
+      for (const eid of instEids) addPset(eid, psId, true);
+    }
+
+    // Juga cek jika type punya psets via IFCRELDEFINESBYPROPERTIES (jalur alternatif)
+    for (const relId2 of (byType['IFCRELDEFINESBYPROPERTIES'] || [])) {
+      const raw2   = entities[relId2].raw;
+      const m2     = /\(([#\d,\s]+)\),#(\d+)/.exec(raw2);
+      if (!m2) continue;
+      const relEids2 = m2[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+      const psId2    = parseInt(m2[2]);
+      if (relEids2.includes(typeId) && psId2 in psetDefs) {
+        for (const eid of instEids) addPset(eid, psId2, true);
+      }
+    }
+  }
+
+  // ── PASS TAMBAHAN: Revit Shared Parameter via IFCRELDEFINESBYPROPERTIES ke type entity
+  // Scan semua IFCRELDEFINESBYPROPERTIES termasuk yang merujuk ke TYPE (bukan instance)
+  // Build: entityId → [psId] untuk SEMUA entity
+  const allEntityPsets = {};
+  for (const relId of (byType['IFCRELDEFINESBYPROPERTIES'] || [])) {
+    const raw = entities[relId].raw;
+    const m   = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const eids = m[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    const psId = parseInt(m[2]);
+    if (!(psId in psetDefs)) continue;
+    for (const eid of eids) {
+      if (!allEntityPsets[eid]) allEntityPsets[eid] = [];
+      allEntityPsets[eid].push(psId);
+    }
+  }
+  // Assign psets type entity ke instance via IFCRELDEFINESBYTYPE
+  for (const relId of (byType['IFCRELDEFINESBYTYPE'] || [])) {
+    const raw    = entities[relId].raw;
+    const m      = /\(([#\d,\s]+)\),#(\d+)/.exec(raw);
+    if (!m) continue;
+    const instEids = m[1].split(',').map(s=>parseInt(s.trim().replace('#',''))).filter(n=>!isNaN(n));
+    const typeId   = parseInt(m[2]);
+    for (const psId of (allEntityPsets[typeId] || [])) {
+      for (const eid of instEids) addPset(eid, psId, true);
     }
   }
 
@@ -1926,7 +2126,7 @@ function parseIFC(text, onProgress) {
         if (!ps) continue;
         for (const pid of ps.propIds) {
           const pv = propVals[pid];
-          if (pv) elemProps[pv.name] = { value: pv.value, pset: ps.name };
+          if (pv) elemProps[pv.name] = { value: pv.value, pset: ps.name, fromType: ps.fromType||false };
         }
       }
 
@@ -1992,6 +2192,7 @@ function parseIFC(text, onProgress) {
     storeys: sortedStoreys,
     allElemTypes,
     allMaterials,
+    _entities: entities,   // untuk debugging — akses via debugElem(id) di console
     noMatByType,
     spaces,
     byType,
@@ -3566,6 +3767,7 @@ let _ELEM_ROWS = [];
 
 function renderProps() {
   const d = DATA;
+  renderTypeParam();
 
   // ── Build flat element table rows (all storeys)
   _ELEM_ROWS = [];
@@ -3604,7 +3806,16 @@ function renderProps() {
     }
   }
   window._ALL_PSETS = Object.values(psetMap).sort((a,b) => a.name.localeCompare(b.name) || a.type.localeCompare(b.type));
-  document.getElementById('pset-badge').textContent = window._ALL_PSETS.length + ' baris';
+  document.getElementById('pset-badge').textContent = window._ALL_PSETS.length + ' properti';
+
+  // Populate filter dropdowns
+  const allPsetNames = [...new Set(window._ALL_PSETS.map(p=>p.pset))].sort();
+  const allTypeNames = [...new Set(window._ALL_PSETS.map(p=>p.type))].sort();
+  const psetNameFilter = document.getElementById('pset-name-filter');
+  const psetTypeFilter = document.getElementById('pset-type-filter');
+  if (psetNameFilter) psetNameFilter.innerHTML = '<option value="">Semua Pset</option>'+allPsetNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if (psetTypeFilter) psetTypeFilter.innerHTML = '<option value="">Semua Tipe</option>'+allTypeNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+
   renderPsetTable(window._ALL_PSETS);
 
   // ── Header
@@ -3640,10 +3851,13 @@ function filterElemTable() {
   document.getElementById('elem-table-badge').textContent =
     rows.length + ' elemen' + (rows.length > PAGE ? ' (tampil '+PAGE+')' : '');
 
-  document.getElementById('elem-tbody').innerHTML = shown.map(e => {
+  const sorted = applyElemSort([...rows]);
+  const shownSorted = sorted.slice(0, PAGE);
+  document.getElementById('elem-tbody').innerHTML = shownSorted.map(e => {
     const cfg = ECFG[e.type] || { lbl: e.type.replace('IFC',''), col: '#3a566e' };
     const mat = (e.material||'').split(';')[0].trim();
-    return `<tr>
+    const hasPsets = e.props && Object.keys(e.props).length > 0;
+    return `<tr class="elem-row-clickable${hasPsets?' has-props':''}" onclick="showElemDetail(${e.id})" title="${hasPsets?'Klik untuk lihat properties':'Tidak ada properties'}">
       <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--slate3)">#${e.id}</td>
       <td><div style="display:flex;align-items:center;gap:6px">
         <div style="width:6px;height:6px;border-radius:50%;background:${cfg.col};flex-shrink:0"></div>
@@ -3654,8 +3868,9 @@ function filterElemTable() {
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:${e.GrossVolume>0?'var(--tq-300)':'var(--slate3)'}">${e.GrossVolume>0?fmt(e.GrossVolume,3):'—'}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:${e.GrossArea>0?'var(--gold)':'var(--slate3)'}">${e.GrossArea>0?fmt(e.GrossArea,2):'—'}</td>
       <td style="font-size:11px;color:var(--slate2);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.material||'')}">${esc(mat||'—')}</td>
+      <td style="font-size:10px;color:${hasPsets?'var(--tq-300)':'var(--slate3)'};text-align:center">${hasPsets?'📋':''}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada elemen</td></tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada elemen</td></tr>`;
 }
 
 function renderPsetTable(psets) {
@@ -3676,23 +3891,324 @@ function renderPsetTable(psets) {
 }
 
 function filterPsets(q) {
-  const psets = window._ALL_PSETS || [];
-  const ql = (q||'').toLowerCase();
-  let filtered = ql
-    ? psets.filter(p =>
-        p.name.toLowerCase().includes(ql) ||
-        p.type.toLowerCase().includes(ql) ||
-        [...p.values].some(v => String(v).toLowerCase().includes(ql)) ||
-        p.pset.toLowerCase().includes(ql))
-    : psets;
+  const psets      = window._ALL_PSETS || [];
+  const ql         = (q||'').toLowerCase();
+  const typeFilter = document.getElementById('pset-type-filter')?.value || '';
+  const psetFilter = document.getElementById('pset-name-filter')?.value || '';
+  let filtered = psets;
+  if (ql)         filtered = filtered.filter(p=>p.name.toLowerCase().includes(ql)||[...p.values].some(v=>String(v).toLowerCase().includes(ql))||p.pset.toLowerCase().includes(ql));
+  if (typeFilter) filtered = filtered.filter(p=>p.type===typeFilter);
+  if (psetFilter) filtered = filtered.filter(p=>p.pset===psetFilter);
   filtered = applyPsetSort(filtered);
   renderPsetTable(filtered);
-  document.getElementById('pset-badge').textContent = filtered.length + (ql ? '/'+psets.length : '') + ' baris';
+  const total = psets.length;
+  document.getElementById('pset-badge').textContent = filtered.length+(filtered.length<total?' / '+total:'') + ' properti';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — PARAMETER PER TIPE FAMILY
+// ═══════════════════════════════════════════════════════════
+let _TP_ROWS = [];
+let _TP_COLS = [];
+
+function renderTypeParam() {
+  const d = DATA;
+
+  // ── Group elemen berdasarkan Family Type
+  // Nama type diambil dari nama elemen Revit: "FamilyName:TypeName:ID" → "FamilyName:TypeName"
+  const typeMap = {}; // key: elemType + typeName → row
+
+  for (const s of d.storeys) {
+    for (const e of s.elements) {
+      // Props dari type (fromType=true) = parameter shared/type Revit
+      const typeProps = {};
+      for (const [pname, pdata] of Object.entries(e.props || {})) {
+        if (pdata.fromType) typeProps[pname] = pdata.value;
+      }
+
+      // Nama type dari nama elemen Revit: "Family:Type:ID" → ambil tanpa ID terakhir
+      const parts    = (e.name || '').split(':');
+      const typeName = parts.length >= 2
+        ? parts.slice(0, parts.length - 1).join(':').trim()
+        : (e.name || '—');
+
+      const cfg = ECFG[e.type] || { lbl: e.type.replace('IFC',''), col: '#3a566e' };
+      const key = e.type + '||' + typeName;
+
+      if (!typeMap[key]) {
+        typeMap[key] = {
+          key, typeName, elemType: e.type,
+          lbl: cfg.lbl, col: cfg.col,
+          count: 0, vol: 0, area: 0,
+          params: {}
+        };
+      }
+      const row = typeMap[key];
+      row.count++;
+      row.vol  += e.GrossVolume || 0;
+      row.area += e.GrossArea   || 0;
+      // Merge params — semua instance dari type yang sama nilainya sama
+      for (const [k, v] of Object.entries(typeProps)) {
+        if (!row.params[k]) row.params[k] = v;
+      }
+    }
+  }
+
+  // Kolom parameter — hanya yang ada di minimal 1 type
+  const allCols = new Set();
+  for (const row of Object.values(typeMap)) {
+    for (const k of Object.keys(row.params)) allCols.add(k);
+  }
+  _TP_COLS = [...allCols].sort();
+
+  // Hanya baris yang punya minimal 1 parameter type
+  _TP_ROWS = Object.values(typeMap)
+    .filter(r => Object.keys(r.params).length > 0)
+    .sort((a, b) => a.elemType.localeCompare(b.elemType) || a.typeName.localeCompare(b.typeName))
+    .map(r => ({ ...r, vol: round4(r.vol), area: round4(r.area) }));
+
+  // Populate filter dropdowns
+  const elemTypes = [...new Set(_TP_ROWS.map(r => r.elemType))].sort();
+  document.getElementById('tp-elem-filter').innerHTML =
+    '<option value="">Semua Tipe Elemen</option>'
+    + elemTypes.map(t => {
+        const cfg2 = ECFG[t] || { lbl: t.replace('IFC','') };
+        return `<option value="${t}">${cfg2.lbl} (${t.replace('IFC','')})</option>`;
+      }).join('');
+
+  document.getElementById('tp-param-filter').innerHTML =
+    '<option value="">Semua Parameter</option>'
+    + _TP_COLS.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+
+  filterTypeParam();
+}
+
+function filterTypeParam() {
+  const q          = (document.getElementById('tp-search')?.value  || '').toLowerCase();
+  const elemFilter = document.getElementById('tp-elem-filter')?.value  || '';
+  const paramFilter= document.getElementById('tp-param-filter')?.value || '';
+
+  let rows = _TP_ROWS;
+  if (elemFilter)   rows = rows.filter(r => r.elemType === elemFilter);
+  if (paramFilter)  rows = rows.filter(r => paramFilter in r.params);
+  if (q) rows = rows.filter(r =>
+    r.typeName.toLowerCase().includes(q) ||
+    r.lbl.toLowerCase().includes(q) ||
+    Object.values(r.params).some(v => String(v).toLowerCase().includes(q))
+  );
+
+  const empty = document.getElementById('tp-empty');
+  const table = document.getElementById('tp-table');
+  if (_TP_ROWS.length === 0) {
+    empty.style.display = 'block';
+    table.style.display = 'none';
+    document.getElementById('tp-badge').textContent = '0 tipe';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = '';
+
+  // Kolom yang tampil: hanya kolom yang ada di rows yang difilter
+  const activeCols = _TP_COLS.filter(k => rows.some(r => k in r.params));
+
+  // Buat header
+  document.getElementById('tp-thead').innerHTML =
+    '<tr>'
+    + '<th style="cursor:default">Tipe Elemen</th>'
+    + '<th style="cursor:default">Nama Family Type</th>'
+    + '<th style="cursor:default;text-align:right">Jumlah</th>'
+    + '<th style="cursor:default;text-align:right">Vol. (m³)</th>'
+    + '<th style="cursor:default;text-align:right">Luas (m²)</th>'
+    + activeCols.map(k =>
+        `<th style="cursor:default;color:var(--tq-300)" title="${esc(k)}">${esc(k)}</th>`
+      ).join('')
+    + '</tr>';
+
+  // Buat rows
+  document.getElementById('tp-tbody').innerHTML = rows.map(r => {
+    const paramCells = activeCols.map(k => {
+      const val = r.params[k];
+      if (val === undefined || val === null || val === '' || val === '$') {
+        return '<td style="color:var(--slate3);font-size:11px">—</td>';
+      }
+      const isYaTidak = val === 'Ya' || val === 'Tidak';
+      const col = val === 'Ya' ? '#4ec9a0' : val === 'Tidak' ? 'var(--slate3)' : 'var(--white2)';
+      return `<td style="font-size:12px;color:${col};font-weight:${isYaTidak?'400':'500'}">${esc(val)}</td>`;
+    }).join('');
+
+    return '<tr>'
+      + `<td><div class="tcell"><div class="tdot" style="background:${r.col}"></div><div class="tname">${r.lbl}</div></div></td>`
+      + `<td style="color:var(--white2);font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.typeName)}">${esc(r.typeName)}</td>`
+      + `<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px">${fmti(r.count)}</td>`
+      + `<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:${r.vol>0?'var(--tq-300)':'var(--slate3)'}">${r.vol>0?fmt(r.vol,2):'—'}</td>`
+      + `<td style="text-align:right;font-family:JetBrains Mono,monospace;font-size:12px;color:${r.area>0?'var(--gold)':'var(--slate3)'}">${r.area>0?fmt(r.area,2):'—'}</td>`
+      + paramCells
+      + '</tr>';
+  }).join('') || '<tr><td colspan="99" style="text-align:center;padding:20px;color:var(--slate3)">Tidak ada data</td></tr>';
+
+  document.getElementById('tp-badge').textContent =
+    rows.length + ' tipe' + (rows.length < _TP_ROWS.length ? ' / ' + _TP_ROWS.length : '')
+    + ' · ' + activeCols.length + ' parameter';
+}
+
+function exportTypeParam() {
+  if (!_TP_ROWS.length) return;
+  const activeCols = _TP_COLS.filter(k => _TP_ROWS.some(r => k in r.params));
+  const header = ['Tipe Elemen','Nama Family Type','Jumlah','Volume (m³)','Luas (m²)', ...activeCols];
+  const rows   = _TP_ROWS.map(r => [
+    r.lbl, r.typeName, r.count, r.vol, r.area,
+    ...activeCols.map(k => r.params[k] ?? '')
+  ]);
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a   = document.createElement('a');
+  a.href    = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download= 'tipe-parameter.csv';
+  a.click();
 }
 
 // Legacy stubs — no longer used but kept to avoid errors
 function renderPropTable() {}
 function filterProps() {}
+
+// ── Detail properties panel (klik baris elemen)
+function showElemDetail(eid) {
+  const allElems = DATA.storeys.flatMap(s=>s.elements.map(e=>({...e,storeyName:s.name})));
+  const e = allElems.find(el=>el.id===eid);
+  if (!e) return;
+
+  // Highlight selected row
+  document.querySelectorAll('.elem-row-clickable').forEach(r=>r.classList.remove('selected'));
+  const row = document.querySelector(`.elem-row-clickable[onclick="showElemDetail(${eid})"]`);
+  if (row) { row.classList.add('selected'); row.scrollIntoView({block:'nearest'}); }
+
+  const cfg  = ECFG[e.type]||{lbl:e.type.replace('IFC',''),col:'#3a566e'};
+  const panel= document.getElementById('elem-detail-panel');
+  const title= document.getElementById('elem-detail-title');
+  const sub  = document.getElementById('elem-detail-sub');
+  const cont = document.getElementById('elem-detail-psets');
+
+  title.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cfg.col};margin-right:6px"></span>${esc(e.name||cfg.lbl)} <span style="font-size:10px;color:var(--slate3);font-weight:400">#${e.id}</span>`;
+  sub.textContent  = `${cfg.lbl} · ${e.storeyName} · Material: ${(e.material||'—').split(';')[0]}`;
+
+  // Kelompokkan props per pset
+  const psets = {};
+  for (const [pname, pdata] of Object.entries(e.props||{})) {
+    const grp = (pdata.pset||'Properti') + (pdata.fromType?' ↗ (dari Type)':'');
+    if (!psets[grp]) psets[grp]=[];
+    psets[grp].push({name:pname, value:pdata.value});
+  }
+
+  // Tambah data kuantitas dari IFC
+  const qProps = [
+    {name:'Volume Bruto',   value: e.GrossVolume>0 ? fmt(e.GrossVolume,4)+' m³' : null},
+    {name:'Volume Neto',    value: e.NetVolume>0   ? fmt(e.NetVolume,4)+' m³'   : null},
+    {name:'Luas Bruto',     value: e.GrossArea>0   ? fmt(e.GrossArea,3)+' m²'   : null},
+    {name:'Luas Sisi',      value: e.GrossSideArea>0? fmt(e.GrossSideArea,3)+' m²':null},
+    {name:'Panjang',        value: e.Length_m>0    ? fmt(e.Length_m,3)+' m'     : null},
+    {name:'Tinggi',         value: e.Height_m>0    ? fmt(e.Height_m,3)+' m'     : null},
+    {name:'Lebar/Tebal',    value: e.Width_m>0     ? fmt(e.Width_m,4)+' m'      : null},
+  ].filter(p=>p.value!==null);
+  if (qProps.length>0) psets['📐 Data Kuantitas (IfcQtySet)'] = qProps;
+
+  // Info identitas
+  psets['🔍 Identitas Elemen'] = [
+    {name:'Tipe IFC',    value: e.type},
+    {name:'Label',       value: cfg.lbl},
+    {name:'Lantai',      value: e.storeyName},
+    {name:'Material',    value: e.material||'—'},
+    {name:'ID Elemen',   value: '#'+e.id},
+  ];
+
+  // Tambah debug info — raw IFC entities
+  const rawEnt  = DATA.byType;
+  const allEnts = DATA._entities || {};
+
+  // Cari type entity untuk elemen ini via IFCRELDEFINESBYTYPE
+  let typeInfo = null;
+  for (const relId of (DATA.byType['IFCRELDEFINESBYTYPE']||[])) {
+    // Kita tidak punya raw entities di DATA — tampilkan info yang ada
+  }
+
+  if (Object.keys(psets).length===1 && psets['🔍 Identitas Elemen']) {
+    cont.innerHTML = '<div style="padding:16px;color:var(--slate3);font-size:12px">'
+      + 'Elemen ini tidak memiliki Pset yang terbaca. '
+      + '<br><br><strong style="color:var(--am)">Tips debug:</strong> Buka Console browser (F12) dan ketik: '
+      + '<code style="background:var(--navy-600);padding:2px 6px;border-radius:4px;color:var(--tq-300)">debugElem('+eid+')</code>'
+      + ' untuk melihat raw IFC entities terkait.'
+      + '</div>';
+  } else {
+    // Urutkan: Identitas dulu, Kuantitas kedua, sisanya alfabetis
+    const ordered = Object.entries(psets).sort((a,b)=>{
+      if (a[0].includes('Identitas')) return -1;
+      if (b[0].includes('Identitas')) return 1;
+      if (a[0].includes('Kuantitas')) return -1;
+      if (b[0].includes('Kuantitas')) return 1;
+      return a[0].localeCompare(b[0]);
+    });
+
+    cont.innerHTML = ordered.map(([grp,props])=>{
+      const rows = props.map(p=>{
+        const vStr   = String(p.value||'—');
+        const isTrue = vStr==='True'||vStr==='true'||vStr==='1';
+        const isFalse= vStr==='False'||vStr==='false'||vStr==='0';
+        const isNum  = !isNaN(parseFloat(vStr))&&isFinite(vStr)&&!vStr.includes(' ');
+        const vClass = isTrue?'bool-true':isFalse?'bool-false':isNum?'numeric':'';
+        const vDisplay= isTrue?'✓ Ya':isFalse?'✗ Tidak':esc(vStr);
+        return `<div class="pset-prop-row">
+          <div class="pset-prop-name" title="${esc(p.name)}">${esc(p.name)}</div>
+          <div class="pset-prop-val ${vClass}" title="${esc(vStr)}">${vDisplay}</div>
+        </div>`;
+      }).join('');
+      return `<div class="pset-card">
+        <div class="pset-card-title">${esc(grp)}</div>
+        ${rows}
+      </div>`;
+    }).join('');
+  }
+
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeElemDetail() {
+  document.getElementById('elem-detail-panel').style.display = 'none';
+  document.querySelectorAll('.elem-row-clickable').forEach(r=>r.classList.remove('selected'));
+}
+
+// ── Debug helper — ketik debugElem(id) di browser console
+window.debugElem = function(eid) {
+  console.group('IFC Debug — Elemen #'+eid);
+  const d = DATA;
+
+  // Cari di storeys
+  let found = null;
+  for (const s of d.storeys) {
+    const e = s.elements.find(el=>el.id===eid);
+    if (e) { found = {...e, storeyName:s.name}; break; }
+  }
+  if (!found) { console.warn('Elemen tidak ditemukan'); console.groupEnd(); return; }
+  console.log('Elemen:', found);
+  console.log('Props (yang terbaca):', found.props);
+  console.log();
+  console.log('Petunjuk: cari di file IFC dengan text editor:');
+  console.log('  1. Cari "#'+eid+'" untuk lihat entity elemen');
+  console.log('  2. Cari "IFCRELDEFINESBYPROPERTIES" yang mengandung "#'+eid+'"');
+  console.log('  3. Cari "IFCRELDEFINESBYTYPE" yang mengandung "#'+eid+'"');
+  console.log('  4. Dari type entity, cari "HasPropertySets" atau embedded (#id)');
+  console.log();
+  console.log('Semua pset yang ter-assign ke elemen ini:');
+  const pmap = {};
+  for (const [k,v] of Object.entries(found.props||{})) {
+    if (!pmap[v.pset]) pmap[v.pset] = [];
+    pmap[v.pset].push(k+' = '+v.value);
+  }
+  for (const [pset, props] of Object.entries(pmap)) {
+    console.log('  ['+pset+']');
+    props.forEach(p=>console.log('    '+p));
+  }
+  console.groupEnd();
+};
 
 function renderMatTable(mats) {
   const total = window._MAT_TOTAL || 1;
