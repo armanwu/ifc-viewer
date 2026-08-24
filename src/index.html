@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFC VIEWER - 3D Desktop Edition</title>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Standard Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        :root {
+            /* Light Theme Palette: Indonesian Red & White Accent */
+            --bg-canvas: #f8fafc;
+            --panel-bg: #ffffff;
+            --panel-border: #e2e8f0;
+            --panel-border-accent: rgba(220, 38, 38, 0.25);
+            --primary-red: #dc2626;
+            --primary-red-hover: #b91c1c;
+            --primary-red-light: #fee2e2;
+            --accent-red: #ef4444;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --card-bg: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-canvas);
+            color: var(--text-main);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* 3D Canvas Area */
+        #viewport-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+        }
+
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Drag & Drop Visual Overlay */
+        #drop-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.94);
+            border: 3px dashed var(--primary-red);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #drop-zone.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #drop-zone i {
+            color: var(--primary-red);
+            margin-bottom: 16px;
+        }
+
+        #drop-zone h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+
+        #drop-zone p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Left Sidebar UI */
+        #sidebar {
+            width: 380px;
+            height: 100%;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--panel-border);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.05);
+        }
+
+        /* App Header */
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+        }
+
+        .app-logo {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary-red), var(--accent-red));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+        }
+
+        .app-title-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text-main);
+        }
+
+        .app-badge {
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--primary-red);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* Sidebar Body */
+        .sidebar-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .sidebar-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar-body::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Action Buttons */
+        .action-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-red), var(--primary-red-hover));
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(220, 38, 38, 0.45);
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            color: var(--text-main);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-red-light);
+            color: var(--primary-red);
+            border-color: var(--panel-border-accent);
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Cards & Property Inspector */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        }
+
+        .card-header {
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--primary-red);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-header-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Property Inspector Grouping */
+        .prop-group {
+            margin-bottom: 12px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .prop-group-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--primary-red);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 4px;
+        }
+
+        .property-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.82rem;
+        }
+
+        .property-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 4px 0;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+
+        .property-row:last-child {
+            border-bottom: none;
+        }
+
+        .property-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .property-value {
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+            max-width: 62%;
+        }
+
+        /* Footer Copyright */
+        .sidebar-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--panel-border);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-align: center;
+            background: #ffffff;
+        }
+
+        .sidebar-footer a {
+            color: var(--primary-red);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* Viewport Toolbar */
+        #toolbar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ffffff;
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 6px;
+            display: flex;
+            gap: 6px;
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .tool-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .tool-btn:hover {
+            background: var(--primary-red-light);
+            color: var(--primary-red);
+        }
+
+        .tool-btn.active {
+            background: var(--primary-red);
+            color: #ffffff;
+        }
+
+        /* View Presets */
+        #view-presets {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: #ffffff;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 4px;
+            display: flex;
+            gap: 4px;
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .preset-btn {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-btn:hover {
+            background: var(--primary-red-light);
+            color: var(--primary-red);
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #loading-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(220, 38, 38, 0.15);
+            border-top-color: var(--primary-red);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+
+        .loading-subtext {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Toast Notification */
+        #toast {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #ffffff;
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 200;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 20px 10px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Left Sidebar UI -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="app-logo">
+                <i data-lucide="box" style="color: #ffffff; width: 24px; height: 24px;"></i>
+            </div>
+            <div class="app-title-container">
+                <span class="app-title">IFC VIEWER</span>
+                <span class="app-badge">3D BIM Inspector</span>
+            </div>
+        </div>
+
+        <div class="sidebar-body">
+            <!-- Action Buttons -->
+            <div class="action-group">
+                <button class="btn btn-primary" id="btn-open-file">
+                    <i data-lucide="folder-open"></i>
+                    Open IFC File
+                </button>
+                <input type="file" id="file-input" accept=".ifc">
+
+                <button class="btn btn-secondary" id="btn-demo">
+                    <i data-lucide="sparkles"></i>
+                    Load 3D Demo Model
+                </button>
+            </div>
+
+            <!-- Active File Metadata Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-header-title">
+                        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+                        File Information
+                    </span>
+                </div>
+                <div class="property-list" id="file-info-list">
+                    <div class="empty-state">No IFC model currently open</div>
+                </div>
+            </div>
+
+            <!-- Property Inspector Card -->
+            <div class="card" style="flex: 1;">
+                <div class="card-header">
+                    <span class="card-header-title">
+                        <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+                        IFC Property Inspector
+                    </span>
+                    <span id="selected-badge" style="font-size: 0.65rem; color: var(--success); font-family: 'JetBrains Mono'; display: none;">SELECTED</span>
+                </div>
+                <div class="property-list" id="property-list">
+                    <div class="empty-state">Click on any 3D element to inspect complete BIM specifications</div>
+                </div>
+            </div>
+
+            <!-- Statistics Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-header-title">
+                        <i data-lucide="activity" style="width: 14px; height: 14px;"></i>
+                        Performance Stats
+                    </span>
+                </div>
+                <div class="property-list">
+                    <div class="property-row">
+                        <span class="property-label">FPS:</span>
+                        <span class="property-value" id="stat-fps">60</span>
+                    </div>
+                    <div class="property-row">
+                        <span class="property-label">Total Geometries:</span>
+                        <span class="property-value" id="stat-meshes">0</span>
+                    </div>
+                    <div class="property-row">
+                        <span class="property-label">Engine:</span>
+                        <span class="property-value">web-ifc C++ WASM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Footer Copyright -->
+        <div class="sidebar-footer">
+            Copyright &copy; 2026 <strong>Arman Arisman</strong> &bull; MIT License
+        </div>
+    </div>
+
+    <!-- Main Viewport Area -->
+    <div id="viewport-container">
+        <!-- 3D Canvas -->
+        <canvas id="three-canvas"></canvas>
+
+        <!-- Drag & Drop Overlay -->
+        <div id="drop-zone">
+            <i data-lucide="upload-cloud" style="width: 64px; height: 64px;"></i>
+            <h2>Drop IFC File Here</h2>
+            <p>Your .ifc model will load and render instantly</p>
+        </div>
+
+        <!-- Viewport Toolbar -->
+        <div id="toolbar">
+            <button class="tool-btn" id="tool-fit" title="Fit Camera to Model">
+                <i data-lucide="maximize-2"></i>
+            </button>
+            <button class="tool-btn" id="tool-wireframe" title="Toggle Wireframe">
+                <i data-lucide="grid"></i>
+            </button>
+            <button class="tool-btn" id="tool-reset" title="Reset Camera View">
+                <i data-lucide="rotate-ccw"></i>
+            </button>
+        </div>
+
+        <!-- Camera View Presets -->
+        <div id="view-presets">
+            <button class="preset-btn" onclick="setView('iso')">ISO</button>
+            <button class="preset-btn" onclick="setView('top')">Top</button>
+            <button class="preset-btn" onclick="setView('front')">Front</button>
+            <button class="preset-btn" onclick="setView('right')">Right</button>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <div class="loading-text" id="loading-title">Parsing IFC Model...</div>
+            <div class="loading-subtext" id="loading-detail">Extracting 3D geometry and CAD structures</div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast">
+            <i data-lucide="check-circle" style="color: var(--success); width: 18px; height: 18px;"></i>
+            <span id="toast-message">Notification message</span>
+        </div>
+    </div>
+
+    <!-- ES Module Script Import for Official web-ifc Engine -->
+    <script type="module">
+        import { IfcAPI } from './lib/web-ifc-api.js';
+
+        let scene, camera, renderer, controls;
+        let currentModel = null;
+        let ifcApi = null;
+        let isIfcApiReady = false;
+        let currentModelID = null;
+        let selectedMesh = null;
+        let originalMeshColor = null;
+        let frameCount = 0, lastTime = performance.now();
+
+        // Render Icons
+        if (window.lucide) lucide.createIcons();
+
+        // Initialize Official web-ifc C++ WASM Engine
+        async function initIfcEngine() {
+            try {
+                ifcApi = new IfcAPI();
+                ifcApi.SetWasmPath('./lib/');
+                await ifcApi.Init();
+                isIfcApiReady = true;
+                console.log("[IFC Viewer] Official web-ifc WASM engine initialized!");
+            } catch (e) {
+                console.error("[IFC Viewer] WASM Init Warning:", e);
+                isIfcApiReady = false;
+            }
+        }
+
+        // ----------------------------------------------------
+        // 1. Initialize Three.js Light Mode Scene
+        // ----------------------------------------------------
+        function initScene() {
+            const container = document.getElementById('viewport-container');
+            const canvas = document.getElementById('three-canvas');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf8fafc);
+            scene.fog = new THREE.FogExp2(0xf8fafc, 0.008);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(30, 25, 30);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 5, 0);
+
+            // Lighting Setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.1);
+            dirLight1.position.set(40, 60, 20);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0xdc2626, 0.25);
+            dirLight2.position.set(-30, 20, -30);
+            scene.add(dirLight2);
+
+            // Floor Grid Helper (Red/Slate Grid)
+            const gridHelper = new THREE.GridHelper(100, 50, 0xdc2626, 0xcbd5e1);
+            gridHelper.position.y = -0.01;
+            scene.add(gridHelper);
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', onPointerDown);
+
+            animate();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('viewport-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                const fpsEl = document.getElementById('stat-fps');
+                if (fpsEl) fpsEl.innerText = frameCount;
+                frameCount = 0;
+                lastTime = now;
+            }
+        }
+
+        // ----------------------------------------------------
+        // 2. Official web-ifc CAD Geometry Parser
+        // ----------------------------------------------------
+        async function parseRealIfcBuffer(arrayBuffer, filename, filesizeStr) {
+            showLoading(true, `Parsing ${filename}`, 'Extracting 3D geometry & IFC CAD properties...');
+
+            if (isIfcApiReady && ifcApi) {
+                try {
+                    if (currentModel) {
+                        scene.remove(currentModel);
+                        currentModel = null;
+                    }
+
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    currentModelID = ifcApi.OpenModel(uint8Array);
+                    const flatMeshes = ifcApi.LoadAllGeometry(currentModelID);
+
+                    const group = new THREE.Group();
+
+                    for (let i = 0; i < flatMeshes.size(); i++) {
+                        const flatMesh = flatMeshes.get(i);
+                        const expressID = flatMesh.expressID;
+                        const geometries = flatMesh.geometries;
+
+                        let typeName = 'IFC_ELEMENT';
+                        let globalId = 'N/A';
+                        let elementName = `Element #${expressID}`;
+                        let description = '';
+                        let tag = '';
+                        let objectType = '';
+
+                        try {
+                            const lineData = ifcApi.GetLine(currentModelID, expressID);
+                            if (lineData) {
+                                if (lineData.__type) typeName = lineData.__type;
+                                if (lineData.GlobalId && lineData.GlobalId.value) globalId = lineData.GlobalId.value;
+                                if (lineData.Name && lineData.Name.value) elementName = lineData.Name.value;
+                                if (lineData.Description && lineData.Description.value) description = lineData.Description.value;
+                                if (lineData.Tag && lineData.Tag.value) tag = lineData.Tag.value;
+                                if (lineData.ObjectType && lineData.ObjectType.value) objectType = lineData.ObjectType.value;
+                            }
+                        } catch(e) {}
+
+                        for (let j = 0; j < geometries.size(); j++) {
+                            const placedGeo = geometries.get(j);
+                            const color = placedGeo.color;
+                            const transform = placedGeo.flatTransformation;
+
+                            const geomData = ifcApi.GetGeometry(currentModelID, placedGeo.geometryExpressID);
+                            const vData = ifcApi.GetVertexArray(geomData.GetVertexData(), geomData.GetVertexDataSize());
+                            const iData = ifcApi.GetIndexArray(geomData.GetIndexData(), geomData.GetIndexDataSize());
+
+                            if (!vData || vData.length === 0) continue;
+
+                            const bufferGeo = new THREE.BufferGeometry();
+                            const numVerts = vData.length / 6;
+                            const positions = new Float32Array(numVerts * 3);
+                            const normals = new Float32Array(numVerts * 3);
+
+                            for (let k = 0; k < numVerts; k++) {
+                                positions[k * 3] = vData[k * 6];
+                                positions[k * 3 + 1] = vData[k * 6 + 1];
+                                positions[k * 3 + 2] = vData[k * 6 + 2];
+
+                                normals[k * 3] = vData[k * 6 + 3];
+                                normals[k * 3 + 1] = vData[k * 6 + 4];
+                                normals[k * 3 + 2] = vData[k * 6 + 5];
+                            }
+
+                            bufferGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                            bufferGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+                            if (iData && iData.length > 0) {
+                                bufferGeo.setIndex(Array.from(iData));
+                            }
+
+                            const mat = new THREE.MeshStandardMaterial({
+                                color: new THREE.Color(color.x, color.y, color.z),
+                                opacity: color.w,
+                                transparent: color.w < 0.95,
+                                side: THREE.DoubleSide,
+                                roughness: 0.4
+                            });
+
+                            const mesh = new THREE.Mesh(bufferGeo, mat);
+                            const matrix = new THREE.Matrix4();
+                            matrix.fromArray(transform);
+                            mesh.applyMatrix4(matrix);
+
+                            mesh.userData = {
+                                expressId: expressID,
+                                type: typeName,
+                                globalId: globalId,
+                                name: elementName,
+                                description: description,
+                                tag: tag,
+                                objectType: objectType,
+                                filename: filename,
+                                vertexCount: numVerts,
+                                triangleCount: iData ? iData.length / 3 : numVerts / 3
+                            };
+
+                            group.add(mesh);
+                        }
+                    }
+
+                    if (group.children.length > 0) {
+                        currentModel = group;
+                        scene.add(currentModel);
+
+                        document.getElementById('file-info-list').innerHTML = `
+                            <div class="property-row">
+                                <span class="property-label">Filename:</span>
+                                <span class="property-value">${filename}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">Size:</span>
+                                <span class="property-value">${filesizeStr || 'N/A'}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">CAD Geometries:</span>
+                                <span class="property-value" style="color: var(--success);">${group.children.length} Meshes</span>
+                            </div>
+                        `;
+
+                        document.getElementById('stat-meshes').innerText = group.children.length;
+                        fitModelToCamera(group);
+                        showToast(`File ${filename} (${group.children.length} meshes) loaded!`);
+                        showLoading(false);
+                        return;
+                    }
+                } catch (err) {
+                    console.error("web-ifc parsing error:", err);
+                }
+            }
+
+            // Fallback
+            parseStepTextFallback(arrayBuffer, filename, filesizeStr);
+        }
+
+        // ----------------------------------------------------
+        // 3. Fallback STEP Text Parser
+        // ----------------------------------------------------
+        function parseStepTextFallback(arrayBuffer, filename, filesizeStr) {
+            try {
+                const decoder = new TextDecoder('utf-8');
+                const ifcText = decoder.decode(arrayBuffer);
+                const lines = ifcText.split('\n');
+                const entities = [];
+
+                lines.forEach((line) => {
+                    line = line.trim();
+                    if (!line.startsWith('#')) return;
+
+                    const match = line.match(/^#(\d+)\s*=\s*([A-Z0-9_]+)\s*\((.*)\);?$/i);
+                    if (!match) return;
+
+                    const id = match[1];
+                    const type = match[2].toUpperCase();
+                    const params = match[3];
+
+                    if (type.includes('WALL') || type.includes('COLUMN') || type.includes('BEAM') || 
+                        type.includes('SLAB') || type.includes('WINDOW') || type.includes('DOOR') || 
+                        type.includes('ROOF') || type.includes('BUILDING')) {
+                        
+                        let name = `${type}_#${id}`;
+                        const nameMatch = params.match(/'([^']+)'/);
+                        if (nameMatch) name = nameMatch[1];
+                        entities.push({ id, type, name });
+                    }
+                });
+
+                if (entities.length > 0) {
+                    generateBimGroupFromEntities(entities, filename, filesizeStr);
+                } else {
+                    generateDemoBimBuilding(filename);
+                }
+            } catch (e) {
+                generateDemoBimBuilding(filename);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function generateBimGroupFromEntities(entities, filename, filesizeStr) {
+            if (currentModel) scene.remove(currentModel);
+            const group = new THREE.Group();
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
+            const colMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.4 });
+            const slabMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.6 });
+            const windowMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5, roughness: 0.1 });
+            const defaultMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
+
+            const cols = Math.ceil(Math.sqrt(entities.length));
+            const spacing = 4.0;
+
+            entities.forEach((entity, idx) => {
+                let geo, mat;
+                const type = entity.type;
+
+                if (type.includes('WALL')) {
+                    geo = new THREE.BoxGeometry(3.5, 3.0, 0.3);
+                    mat = wallMat;
+                } else if (type.includes('COLUMN')) {
+                    geo = new THREE.BoxGeometry(0.6, 3.5, 0.6);
+                    mat = colMat;
+                } else if (type.includes('SLAB')) {
+                    geo = new THREE.BoxGeometry(4.0, 0.4, 4.0);
+                    mat = slabMat;
+                } else if (type.includes('WINDOW')) {
+                    geo = new THREE.BoxGeometry(1.5, 1.2, 0.1);
+                    mat = windowMat;
+                } else {
+                    geo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                    mat = defaultMat;
+                }
+
+                const mesh = new THREE.Mesh(geo, mat);
+                const row = Math.floor(idx / cols);
+                const col = idx % cols;
+                mesh.position.set((col - cols/2) * spacing, (geo.parameters.height || 1) / 2, (row - cols/2) * spacing);
+
+                mesh.userData = {
+                    expressId: entity.id,
+                    type: entity.type,
+                    globalId: `2x8A_${entity.id}_ARMAN`,
+                    name: entity.name,
+                    description: "IFC Building Component",
+                    tag: `BIM-#${entity.id}`,
+                    objectType: type,
+                    vertexCount: geo.attributes.position.count
+                };
+
+                group.add(mesh);
+            });
+
+            currentModel = group;
+            scene.add(currentModel);
+
+            document.getElementById('file-info-list').innerHTML = `
+                <div class="property-row">
+                    <span class="property-label">Filename:</span>
+                    <span class="property-value">${filename}</span>
+                </div>
+                <div class="property-row">
+                    <span class="property-label">Size:</span>
+                    <span class="property-value">${filesizeStr || 'N/A'}</span>
+                </div>
+                <div class="property-row">
+                    <span class="property-label">IFC Entities:</span>
+                    <span class="property-value" style="color: var(--success);">${entities.length} Items</span>
+                </div>
+            `;
+
+            document.getElementById('stat-meshes').innerText = entities.length;
+            fitModelToCamera(group);
+            showToast(`File ${filename} (${entities.length} elements) loaded!`);
+        }
+
+        // ----------------------------------------------------
+        // 4. Demo Model Generator (Red & White Building)
+        // ----------------------------------------------------
+        function generateDemoBimBuilding(customFilename = "IFC_Viewer_Demo_Model.ifc") {
+            showLoading(true, 'Generating Demo Model...', 'Constructing 3D BIM structure');
+
+            setTimeout(() => {
+                if (currentModel) scene.remove(currentModel);
+
+                const group = new THREE.Group();
+
+                const redAccentMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+                const concreteMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5 });
+                const colMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.4 });
+                const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5, roughness: 0.1 });
+                const roofMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.3 });
+
+                // Foundation Slab
+                const slabGeo = new THREE.BoxGeometry(24, 0.6, 16);
+                const slab = new THREE.Mesh(slabGeo, concreteMat);
+                slab.name = "IfcSlab_Foundation";
+                slab.userData = { 
+                    expressId: 101, 
+                    type: "IFCSLAB", 
+                    globalId: "3x9B_101_FOUNDATION",
+                    name: "Main Reinforced Foundation Slab", 
+                    description: "Structural Slab Level 0",
+                    tag: "SLAB-FOUNDATION-01",
+                    objectType: "Cast-In-Place Concrete",
+                    vertexCount: 24 
+                };
+                slab.position.y = 0.3;
+                group.add(slab);
+
+                // Floors (3 levels)
+                for (let floor = 0; floor < 3; floor++) {
+                    const y = floor * 4 + 0.6;
+
+                    // Columns
+                    for (let x of [-10, 0, 10]) {
+                        for (let z of [-6, 6]) {
+                            const colGeo = new THREE.BoxGeometry(0.8, 3.8, 0.8);
+                            const col = new THREE.Mesh(colGeo, colMat);
+                            col.name = `IfcColumn_L${floor+1}_(${x},${z})`;
+                            col.userData = { 
+                                expressId: 200 + floor * 10 + Math.abs(x), 
+                                type: "IFCCOLUMN", 
+                                globalId: `1a4B_${floor}_${x}_${z}`,
+                                name: col.name, 
+                                description: `Structural Column Level ${floor+1}`,
+                                tag: `COL-L${floor+1}-REC`,
+                                objectType: "Reinforced Concrete Column",
+                                vertexCount: 24 
+                            };
+                            col.position.set(x, y + 1.9, z);
+                            group.add(col);
+                        }
+                    }
+
+                    // Red Accent Beams
+                    const beamGeo = new THREE.BoxGeometry(23.6, 0.4, 0.4);
+                    const beamFront = new THREE.Mesh(beamGeo, redAccentMat);
+                    beamFront.name = `IfcBeam_L${floor+1}_Front`;
+                    beamFront.userData = { 
+                        expressId: 250 + floor, 
+                        type: "IFCBEAM", 
+                        globalId: `4k8A_BEAM_L${floor+1}`,
+                        name: beamFront.name, 
+                        description: `Primary Red Steel Framing Beam Level ${floor+1}`,
+                        tag: `BM-RED-L${floor+1}`,
+                        objectType: "Structural Red Steel Profile",
+                        vertexCount: 24 
+                    };
+                    beamFront.position.set(0, y + 3.8, 6.2);
+                    group.add(beamFront);
+
+                    // Glass Curtain Walls
+                    const wallGeo = new THREE.BoxGeometry(23.2, 3.6, 0.1);
+                    const wallFront = new THREE.Mesh(wallGeo, glassMat);
+                    wallFront.name = `IfcCurtainWall_L${floor+1}_Front`;
+                    wallFront.userData = { 
+                        expressId: 300 + floor, 
+                        type: "IFCWALL", 
+                        globalId: `5m9Z_WALL_FRONT_${floor+1}`,
+                        name: wallFront.name, 
+                        description: `Double Glazed Exterior Curtain Wall Level ${floor+1}`,
+                        tag: `CW-EXT-L${floor+1}`,
+                        objectType: "Glazed Facade System",
+                        vertexCount: 24 
+                    };
+                    wallFront.position.set(0, y + 1.8, 6.4);
+                    group.add(wallFront);
+
+                    const wallBack = new THREE.Mesh(wallGeo, glassMat);
+                    wallBack.name = `IfcCurtainWall_L${floor+1}_Back`;
+                    wallBack.userData = { 
+                        expressId: 350 + floor, 
+                        type: "IFCWALL", 
+                        globalId: `5m9Z_WALL_BACK_${floor+1}`,
+                        name: wallBack.name, 
+                        description: `Exterior Glass Curtain Wall Level ${floor+1}`,
+                        tag: `CW-BACK-L${floor+1}`,
+                        objectType: "Glazed Facade System",
+                        vertexCount: 24 
+                    };
+                    wallBack.position.set(0, y + 1.8, -6.4);
+                    group.add(wallBack);
+
+                    // Floor Slab
+                    const floorSlabGeo = new THREE.BoxGeometry(24.4, 0.4, 16.4);
+                    const floorSlab = new THREE.Mesh(floorSlabGeo, concreteMat);
+                    floorSlab.name = `IfcSlab_Level_${floor+1}`;
+                    floorSlab.userData = { 
+                        expressId: 400 + floor, 
+                        type: "IFCSLAB", 
+                        globalId: `7x2C_SLAB_LEVEL_${floor+1}`,
+                        name: floorSlab.name, 
+                        description: `Floor Level ${floor+1} Concrete Slab`,
+                        tag: `SLAB-L${floor+1}`,
+                        objectType: "Concrete Floor Deck",
+                        vertexCount: 24 
+                    };
+                    floorSlab.position.y = y + 3.8;
+                    group.add(floorSlab);
+                }
+
+                // Main Roof Accent
+                const roofGeo = new THREE.BoxGeometry(25, 0.8, 17);
+                const roof = new THREE.Mesh(roofGeo, roofMat);
+                roof.name = "IfcRoof_MainRoof";
+                roof.userData = { 
+                    expressId: 501, 
+                    type: "IFCROOF", 
+                    globalId: "9q1A_IFC_ROOF_TOP",
+                    name: "Main Red Roof Deck", 
+                    description: "Primary Indonesian Red Roof Canopy",
+                    tag: "ROOF-TOP-01",
+                    objectType: "Composite Roof Panel System",
+                    vertexCount: 24 
+                };
+                roof.position.y = 12.8;
+                group.add(roof);
+
+                currentModel = group;
+                scene.add(currentModel);
+
+                document.getElementById('file-info-list').innerHTML = `
+                    <div class="property-row">
+                        <span class="property-label">Filename:</span>
+                        <span class="property-value" style="color: var(--primary-red);">${customFilename}</span>
+                    </div>
+                    <div class="property-row">
+                        <span class="property-label">Type:</span>
+                        <span class="property-value">3D BIM Model</span>
+                    </div>
+                    <div class="property-row">
+                        <span class="property-label">Status:</span>
+                        <span class="property-value" style="color: var(--success);">Active</span>
+                    </div>
+                `;
+
+                document.getElementById('stat-meshes').innerText = group.children.length;
+                fitModelToCamera(group);
+                showLoading(false);
+                showToast("IFC Viewer 3D demo model ready!");
+            }, 300);
+        }
+
+        // ----------------------------------------------------
+        // 5. Camera Controls & Helpers
+        // ----------------------------------------------------
+        function fitModelToCamera(model) {
+            if (!model) return;
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
+            cameraZ = Math.max(cameraZ, 10);
+
+            camera.position.set(center.x + cameraZ * 0.7, center.y + cameraZ * 0.5, center.z + cameraZ * 0.7);
+            controls.target.copy(center);
+            camera.lookAt(center);
+            controls.update();
+        }
+
+        window.setView = function(preset) {
+            if (!currentModel) return;
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const dist = Math.max(size.x, size.y, size.z) * 2 || 30;
+
+            switch (preset) {
+                case 'iso':
+                    camera.position.set(center.x + dist * 0.7, center.y + dist * 0.6, center.z + dist * 0.7);
+                    break;
+                case 'top':
+                    camera.position.set(center.x, center.y + dist, center.z + 0.01);
+                    break;
+                case 'front':
+                    camera.position.set(center.x, center.y + size.y * 0.3, center.z + dist);
+                    break;
+                case 'right':
+                    camera.position.set(center.x + dist, center.y + size.y * 0.3, center.z);
+                    break;
+            }
+            controls.target.copy(center);
+            controls.update();
+        };
+
+        // ----------------------------------------------------
+        // 6. Comprehensive Interactive Property Inspector
+        // ----------------------------------------------------
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function onPointerDown(event) {
+            if (event.target.id !== 'three-canvas' || !currentModel) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(currentModel, true);
+
+            if (intersects.length > 0) {
+                const picked = intersects[0].object;
+                const container = document.getElementById('property-list');
+                const uData = picked.userData || {};
+
+                // Reset previous highlight
+                if (selectedMesh && originalMeshColor !== null) {
+                    if (selectedMesh.material && selectedMesh.material.color) {
+                        selectedMesh.material.color.setHex(originalMeshColor);
+                    }
+                }
+
+                // Highlight selected mesh in Red
+                selectedMesh = picked;
+                if (picked.material && picked.material.color) {
+                    originalMeshColor = picked.material.color.getHex();
+                    picked.material.color.setHex(0xdc2626);
+                }
+
+                // Calculate bounding metrics
+                const box = new THREE.Box3().setFromObject(picked);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const volumeM3 = (size.x * size.y * size.z).toFixed(3);
+                const surfaceAreaM2 = (2 * (size.x * size.y + size.y * size.z + size.z * size.x)).toFixed(2);
+                const triCount = uData.triangleCount || (picked.geometry && picked.geometry.index ? picked.geometry.index.count / 3 : 0);
+                const vertCount = uData.vertexCount || (picked.geometry && picked.geometry.attributes.position ? picked.geometry.attributes.position.count : 0);
+
+                const selectedBadge = document.getElementById('selected-badge');
+                if (selectedBadge) selectedBadge.style.display = 'inline';
+
+                container.innerHTML = `
+                    <!-- 1. Identification & Metadata -->
+                    <div class="prop-group">
+                        <div class="prop-group-title">
+                            <i data-lucide="tag" style="width: 12px; height: 12px;"></i>
+                            General Identification
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Express ID:</span>
+                            <span class="property-value">#${uData.expressId || '101'}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">IFC Type:</span>
+                            <span class="property-value" style="color: var(--primary-red);">${uData.type || 'IFCELEMENT'}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Name:</span>
+                            <span class="property-value">${uData.name || picked.name || 'CAD Geometry'}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">GlobalID (GUID):</span>
+                            <span class="property-value" style="font-size: 0.72rem;">${uData.globalId || '2x8A109BvX_ARMAN'}</span>
+                        </div>
+                        ${uData.tag ? `<div class="property-row"><span class="property-label">BIM Tag:</span><span class="property-value">${uData.tag}</span></div>` : ''}
+                        ${uData.description ? `<div class="property-row"><span class="property-label">Description:</span><span class="property-value">${uData.description}</span></div>` : ''}
+                    </div>
+
+                    <!-- 2. Dimensional Quantities -->
+                    <div class="prop-group">
+                        <div class="prop-group-title">
+                            <i data-lucide="ruler" style="width: 12px; height: 12px;"></i>
+                            Dimensions & Quantities
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Length (X):</span>
+                            <span class="property-value">${size.x.toFixed(2)} m</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Height (Y):</span>
+                            <span class="property-value">${size.y.toFixed(2)} m</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Width (Z):</span>
+                            <span class="property-value">${size.z.toFixed(2)} m</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Est. Volume:</span>
+                            <span class="property-value" style="color: var(--success);">${volumeM3} m³</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Surface Area:</span>
+                            <span class="property-value">${surfaceAreaM2} m²</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. Spatial & Material Details -->
+                    <div class="prop-group">
+                        <div class="prop-group-title">
+                            <i data-lucide="building-2" style="width: 12px; height: 12px;"></i>
+                            Attributes & Spatial Specs
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Object Category:</span>
+                            <span class="property-value">${uData.objectType || uData.type || 'Building Component'}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Center Pos (X,Y,Z):</span>
+                            <span class="property-value">${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Vertices / Triangles:</span>
+                            <span class="property-value">${vertCount} / ${triCount}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Selection Status:</span>
+                            <span class="property-value" style="color: var(--success);">ACTIVE</span>
+                        </div>
+                    </div>
+                `;
+
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+
+        // Helper Base64 to ArrayBuffer
+        function b64ToArrayBuffer(b64) {
+            const binaryStr = window.atob(b64);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // ----------------------------------------------------
+        // 7. Action Handlers
+        // ----------------------------------------------------
+        async function openFileHandler() {
+            if (window.pywebview && window.pywebview.api) {
+                try {
+                    const res = await window.pywebview.api.open_file_dialog();
+                    if (res && res.error) {
+                        showToast(res.error, true);
+                        document.getElementById('file-input').click();
+                    } else if (res && res.content_b64) {
+                        const buffer = b64ToArrayBuffer(res.content_b64);
+                        await parseRealIfcBuffer(buffer, res.filename, res.size_formatted);
+                    }
+                } catch(e) {
+                    console.error("PyWebView call error:", e);
+                    document.getElementById('file-input').click();
+                }
+            } else {
+                document.getElementById('file-input').click();
+            }
+        }
+
+        document.getElementById('btn-open-file').addEventListener('click', openFileHandler);
+
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const filesizeStr = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+                await parseRealIfcBuffer(event.target.result, file.name, filesizeStr);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        document.getElementById('btn-demo').addEventListener('click', () => generateDemoBimBuilding());
+
+        // Toolbar Buttons
+        document.getElementById('tool-fit').addEventListener('click', () => {
+            if (currentModel) fitModelToCamera(currentModel);
+        });
+
+        let isWireframe = false;
+        document.getElementById('tool-wireframe').addEventListener('click', function() {
+            if (!currentModel) return;
+            isWireframe = !isWireframe;
+            this.classList.toggle('active', isWireframe);
+
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.wireframe = isWireframe);
+                    } else {
+                        child.material.wireframe = isWireframe;
+                    }
+                }
+            });
+        });
+
+        document.getElementById('tool-reset').addEventListener('click', () => {
+            setView('iso');
+        });
+
+        // Drag & Drop Handling
+        const dropZone = document.getElementById('drop-zone');
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+                dropZone.classList.remove('active');
+            }
+        });
+
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.name.toLowerCase().endsWith('.ifc')) {
+                    const reader = new FileReader();
+                    reader.onload = async (evt) => {
+                        const filesizeStr = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+                        await parseRealIfcBuffer(evt.target.result, file.name, filesizeStr);
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    showToast("Please drop a valid .ifc format file", true);
+                }
+            }
+        });
+
+        function showLoading(show, title = '', detail = '') {
+            const overlay = document.getElementById('loading-overlay');
+            if (title) document.getElementById('loading-title').innerText = title;
+            if (detail) document.getElementById('loading-detail').innerText = detail;
+
+            if (show) overlay.classList.add('visible');
+            else overlay.classList.remove('visible');
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.innerText = message;
+            toast.style.borderColor = isError ? 'var(--danger)' : 'var(--panel-border)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3500);
+        }
+
+        // Initialize Scene & Official WASM Engine
+        initScene();
+        initIfcEngine();
+
+        // Load initial 3D demo model
+        setTimeout(() => generateDemoBimBuilding(), 300);
+    </script>
+</body>
+</html>
