@@ -1,4 +1,4 @@
-# 🏢 IFC VIEWER
+# IFC VIEWER
 
 A simple, fast, and modern **3D Desktop Viewer** for opening and inspecting **IFC / BIM 3D models** on Windows. 
 
