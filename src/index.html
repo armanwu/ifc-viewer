@@ -998,9 +998,10 @@
                     type: "IFCSLAB", 
                     globalId: "3x9B_101_FOUNDATION",
                     name: "Main Reinforced Foundation Slab", 
-                    description: "Structural Slab Level 0",
+                    description: "Structural Foundation Slab Level 0",
                     tag: "SLAB-FOUNDATION-01",
                     objectType: "Cast-In-Place Concrete",
+                    storey: "Ground Floor / Foundation (Level 0)",
                     vertexCount: 24 
                 };
                 slab.position.y = 0.3;
@@ -1009,6 +1010,7 @@
                 // Floors (3 levels)
                 for (let floor = 0; floor < 3; floor++) {
                     const y = floor * 4 + 0.6;
+                    const floorStorey = `Floor Level ${floor+1}`;
 
                     // Columns
                     for (let x of [-10, 0, 10]) {
@@ -1024,6 +1026,7 @@
                                 description: `Structural Column Level ${floor+1}`,
                                 tag: `COL-L${floor+1}-REC`,
                                 objectType: "Reinforced Concrete Column",
+                                storey: floorStorey,
                                 vertexCount: 24 
                             };
                             col.position.set(x, y + 1.9, z);
@@ -1043,6 +1046,7 @@
                         description: `Primary Red Steel Framing Beam Level ${floor+1}`,
                         tag: `BM-RED-L${floor+1}`,
                         objectType: "Structural Red Steel Profile",
+                        storey: floorStorey,
                         vertexCount: 24 
                     };
                     beamFront.position.set(0, y + 3.8, 6.2);
@@ -1060,6 +1064,7 @@
                         description: `Double Glazed Exterior Curtain Wall Level ${floor+1}`,
                         tag: `CW-EXT-L${floor+1}`,
                         objectType: "Glazed Facade System",
+                        storey: floorStorey,
                         vertexCount: 24 
                     };
                     wallFront.position.set(0, y + 1.8, 6.4);
@@ -1075,6 +1080,7 @@
                         description: `Exterior Glass Curtain Wall Level ${floor+1}`,
                         tag: `CW-BACK-L${floor+1}`,
                         objectType: "Glazed Facade System",
+                        storey: floorStorey,
                         vertexCount: 24 
                     };
                     wallBack.position.set(0, y + 1.8, -6.4);
@@ -1092,6 +1098,7 @@
                         description: `Floor Level ${floor+1} Concrete Slab`,
                         tag: `SLAB-L${floor+1}`,
                         objectType: "Concrete Floor Deck",
+                        storey: floorStorey,
                         vertexCount: 24 
                     };
                     floorSlab.position.y = y + 3.8;
@@ -1110,6 +1117,7 @@
                     description: "Primary Indonesian Red Roof Canopy",
                     tag: "ROOF-TOP-01",
                     objectType: "Composite Roof Panel System",
+                    storey: "Roof Top Deck",
                     vertexCount: 24 
                 };
                 roof.position.y = 12.8;
@@ -1436,10 +1444,12 @@
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMsg = document.getElementById('toast-message');
-            toastMsg.innerText = message;
-            toast.style.borderColor = isError ? 'var(--danger)' : 'var(--panel-border)';
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3500);
+            if (toastMsg) toastMsg.innerText = message;
+            if (toast) {
+                toast.style.borderColor = isError ? 'var(--danger)' : 'var(--panel-border)';
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3500);
+            }
         }
 
         // Initialize Scene & Official WASM Engine
